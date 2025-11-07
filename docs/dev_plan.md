@@ -19,7 +19,7 @@ _最后更新：2025-11-07_
 - **队列**：应用层仍使用 `InMemoryQueueBackend` 运行 CLI worker；同时将 job/submission 状态持久化在 MongoDB 中，便于重启恢复。
 - **认证**：仅依赖自管 API key。`/api/login` 验证 `api_keys` 集合并返回 session（直接复用 key 以保持兼容）。
 - **前端**：React (Vite + TypeScript)，最小可用界面：登录（API key 输入）、上传、job 列表、job 详情。
-- **存储**：上传/制品仍落地到可配置目录（默认 `./data/jobs/<jobid>`），MongoDB 仅保存元数据/路径。
+- **存储**：上传/制品仍落地到可配置目录（默认 `./data/jobs/<jobid>`），MongoDB 仅保存元数据/路径。Astrometry index files 已预下载在项目根目录的 `./astrometry_indexes/`，通过环境变量 `ASTROMETRY_INDEX_DIR` 指向该目录即可，无需重复拉取。
 - **配置**：Pydantic Settings（.env）提供 CLI 路径、数据目录、Mongo 连接信息。
 
 ### CLI 默认路径（来自 brew 安装）
@@ -39,8 +39,8 @@ _最后更新：2025-11-07_
 - **生产部署**：可使用 Docker 或 MongoDB Atlas
 
 ### 仍需提供/确认的信息
-- Index files 的存储位置/下载办法（建议定义 `ASTROMETRY_INDEX_DIR`）。
-- `test_installation.py` 的使用示例。
+- 明确 Mongo 实例的长期托管策略（自管/Atlas）及多环境（dev/staging/prod）连接串。
+- 根据实际吞吐量评估是否需要将内存队列替换为外部队列（如 Redis）或在 Mongo 中做补偿机制。
 
 ## 目标架构
 ```
@@ -88,15 +88,14 @@ project/
 4. **M4：硬化 & 文档**（包含 `.env.example` 中的 `MONGODB_URI`、索引创建脚本、备份策略）。
 
 ## 尚需确认/待办
-- Mongo 连接信息由谁提供？是否需要多环境（dev/staging/prod）？
-- 是否需要为队列引入持久化（例如 Mongo 里维护 `queue_messages` 集合以便重启时恢复未完成任务）。
-- Index files、`test_installation.py` 示例仍待补。
+- `test_installation.py` 只作为遗留参考文件，后续是否完全移除需确认。
+- 为 `astrometry_indexes/` 制定校验/更新策略（目前由本地快照提供，后续需说明如何同步 data.astrometry.net 的增量）。
 
 ## 新人交付指南
 1. 准备 Mongo 实例：
    - **测试环境**：运行 `scripts/start_mongodb.sh` 启动本地临时实例
    - **生产环境**：使用 Docker 或 MongoDB Atlas
    - 在 `.env` 中设置 `MONGODB_URI=mongodb://localhost:27017` 和 `MONGODB_DBNAME=<数据库名>`
-2. 参照 README 安装 brew CLI、下载 index files。
+2. 参照 README 安装 brew CLI，复用仓库根目录 `astrometry_indexes/` 中已缓存的 index files 并在 `.env` 中配置 `ASTROMETRY_INDEX_DIR`。
 3. 按里程碑执行，阶段性运行 `tests/integration/test_client_compat.py` 以旧客户端为验收。
 4. 更新本文件记录新增约束/配置信息。
