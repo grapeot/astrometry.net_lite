@@ -16,7 +16,7 @@ _最后更新：2025-11-07_
 - **后端**：FastAPI + Pydantic + `motor`(async MongoDB 驱动)。
 - **数据库**：MongoDB（云托管或本地），集合示例：`api_keys`, `submissions`, `jobs`, `artifacts`, `queue_messages`。
   - `.env` 暴露 `MONGODB_URI`, `MONGODB_DBNAME`，可含用户名/密码或 Atlas connection string。
-- **队列**：应用层仍使用 `InMemoryQueueBackend` 运行 CLI worker；同时将 job/submission 状态持久化在 MongoDB 中，便于重启恢复。
+- **队列**：改为 MongoDB-backed 队列：`queue_messages` 集合存储 job payload + 状态，API 写入即持久化，worker 通过 `findOneAndUpdate` 原子领取任务，保证重启后可恢复；内存层仅保留轻量 cache（可选）。
 - **认证**：仅依赖自管 API key。`/api/login` 验证 `api_keys` 集合并返回 session（直接复用 key 以保持兼容）。
 - **前端**：React (Vite + TypeScript)，最小可用界面：登录（API key 输入）、上传、job 列表、job 详情。
 - **存储**：上传/制品仍落地到可配置目录（默认 `./data/jobs/<jobid>`），MongoDB 仅保存元数据/路径。Astrometry index files 已预下载在项目根目录的 `./astrometry_indexes/`，通过环境变量 `ASTROMETRY_INDEX_DIR` 指向该目录即可，无需重复拉取。
@@ -40,7 +40,7 @@ _最后更新：2025-11-07_
 
 ### 仍需提供/确认的信息
 - 明确 Mongo 实例的长期托管策略（自管/Atlas）及多环境（dev/staging/prod）连接串。
-- 根据实际吞吐量评估是否需要将内存队列替换为外部队列（如 Redis）或在 Mongo 中做补偿机制。
+- 下载注释图（annotated image）的原始输出规格（PNG/JPEG？带透明度？）以便 CLI worker 正确调用绘图脚本。
 
 ## 目标架构
 ```
@@ -72,10 +72,18 @@ project/
 
 ## 后端流程（结合 Mongo）
 1. `/api/login`：从 `api_keys` 集合读取 key，返回 `{status:'success', session:<key>}`。
-2. `/api/upload`：写 `submissions` 文档（含 metadata、文件路径、创建时间），同时写 `jobs` 文档（status=queued），并将 `JobSpec` 放入内存队列。
-3. Worker：消费队列 → 调 CLI → 更新 `jobs` 文档（status、开始/结束时间、错误信息）、`artifacts` 文档（结果文件路径）。
-4. 查询接口：从 Mongo 读取 `submissions`/`jobs`，构建 legacy JSON；下载路由读取本地文件。
-5. 前端：同前，调用 API 展示 Mongo 中的最新状态。
+2. `/api/upload`：写 `submissions` 文档（含 metadata、文件路径、创建时间），写 `jobs` 文档（status=queued），并往 `queue_messages` 集合插入待处理任务。
+3. Worker：轮询 Mongo（或使用 change stream）领取队列任务 → 调 CLI → 更新 `jobs` 文档（status、开始/结束时间、错误信息）、`artifacts` 文档（结果文件路径），并写回 `queue_messages` 完成态。
+4. 查询/下载接口：从 Mongo 读取 `submissions`/`jobs`，构建 legacy JSON；`/wcs_file/*` 等路由直接读取本地文件或流式返回。
+5. 前端：调用 API 获取 Mongo 状态，与 CLI 输出文件联动刷新 UI。
+
+## API 兼容范围（基于 `net/client/client.py`）
+- Auth & submissions：`/api/login`, `/api/upload`, `/api/url_upload`, `/api/submissions/<id>`, `/api/submissions/<id>/jobs`, `/api/submission_images`。
+- Job lifecycle：`/api/jobs/<id>`, `/api/jobs/<id>/calibration`, `/api/jobs/<id>/tags`, `/api/jobs/<id>/machine_tags`, `/api/jobs/<id>/objects_in_field`, `/api/jobs/<id>/annotations`, `/api/jobs/<id>/info`, `/api/myjobs/`, `/api/jobs_by_tag`。
+- Visualization：`/api/sdss_image_for_wcs`, `/api/galex_image_for_wcs`, `/api/jobs/<id>/annotations`（JSON）以及新增 `/annotated_display/<jobid>` （PNG/JPEG 下载）。
+- 文件制品：`/wcs_file/<jobid>`, `/kml_file/<jobid>/`, `/new_fits_file/<jobid>/`, `/corr_file/<jobid>` 等公开路由。
+
+> 以上列表将记录在 `docs/working_log.md` 中，随功能落地逐条打勾并注明测试覆盖。
 
 ## 开发里程碑（沿用之前结构，替换到 Mongo）
 1. **M1：FastAPI 骨架 & Mongo 接入**
@@ -90,6 +98,7 @@ project/
 ## 尚需确认/待办
 - `test_installation.py` 只作为遗留参考文件，后续是否完全移除需确认。
 - 为 `astrometry_indexes/` 制定校验/更新策略（目前由本地快照提供，后续需说明如何同步 data.astrometry.net 的增量）。
+- Annotated image 的下载 API 需要明确文件格式 & 命名策略，保证与旧客户端/前端兼容。
 
 ## 新人交付指南
 1. 准备 Mongo 实例：
