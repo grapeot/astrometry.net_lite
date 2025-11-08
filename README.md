@@ -36,7 +36,7 @@ PY
    ```
 6. Launch the API (reads `.env` for `API_HOST`/`API_PORT`):
    ```bash
-   ./scripts/start:backend
+   ./scripts/start_backend.sh
    ```
 7. (Optional) Run the worker in another shell to execute queued jobs:
    ```bash
@@ -52,7 +52,7 @@ cd frontend
 npm install    # already done once
 npm run dev    # launches http://localhost:5173
 ## 或使用统一脚本（会自动进入 frontend 目录）
-../scripts/start:frontend
+../scripts/start_frontend.sh
 ```
 
 Set `VITE_API_BASE` in `frontend/.env.development` if your API runs on a different host.
