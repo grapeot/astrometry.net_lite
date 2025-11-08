@@ -15,7 +15,7 @@ class PyObjectId(ObjectId):
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v, info=None):  # info arg for Pydantic v2
         if isinstance(v, ObjectId):
             return v
         if isinstance(v, str):

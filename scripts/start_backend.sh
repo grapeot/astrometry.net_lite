@@ -19,6 +19,10 @@ fi
 
 HOST="${API_HOST:-127.0.0.1}"
 PORT="${API_PORT:-8000}"
+LOG_DIR="$PROJECT_ROOT/logs"
+LOG_FILE="$LOG_DIR/backend.log"
 
-echo "Starting backend on ${HOST}:${PORT}"
-exec uvicorn api.main:app --reload --host "$HOST" --port "$PORT"
+mkdir -p "$LOG_DIR"
+
+echo "Starting backend on ${HOST}:${PORT} (logs → $LOG_FILE)"
+exec uvicorn api.main:app --reload --host "$HOST" --port "$PORT" >>"$LOG_FILE" 2>&1

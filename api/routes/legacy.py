@@ -7,6 +7,7 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
+from starlette.datastructures import UploadFile as StarletteUploadFile
 from fastapi.responses import FileResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -26,6 +27,8 @@ async def _parse_request_payload(request: Request) -> tuple[dict[str, Any], dict
     files: dict[str, UploadFile] = {}
     payload: dict[str, Any] = {}
 
+    upload_types = (UploadFile, StarletteUploadFile)
+
     if "multipart/form-data" in content_type or "application/x-www-form-urlencoded" in content_type:
         form = await request.form()
         data = form.get("request-json")
@@ -33,7 +36,7 @@ async def _parse_request_payload(request: Request) -> tuple[dict[str, Any], dict
             raise HTTPException(status_code=400, detail="missing request-json")
         payload = json.loads(data)
         for key, value in form.multi_items():
-            if isinstance(value, UploadFile):
+            if isinstance(value, upload_types):
                 files[key] = value
     elif "application/json" in content_type:
         payload = await request.json()
