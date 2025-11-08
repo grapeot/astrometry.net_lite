@@ -19,6 +19,7 @@ class AppSettings(BaseSettings):
     upload_cache_dir: Path = Path("./data/uploads")
 
     queue_visibility_timeout_seconds: int = 300
+    enable_kmz: bool = False
 
     solve_field_bin: str = "/opt/homebrew/bin/solve-field"
     augment_xylist_bin: str = "/opt/homebrew/bin/augment-xylist"

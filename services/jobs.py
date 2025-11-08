@@ -28,7 +28,7 @@ async def update_job_status(
     failure_reason: str | None = None,
     results: dict[str, Any] | None = None,
     annotations: list[dict[str, Any]] | None = None,
-    objects_in_field: list[dict[str, Any]] | None = None,
+    objects_in_field: list[Any] | None = None,
 ) -> None:
     update: dict[str, Any] = {
         "$set": {

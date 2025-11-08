@@ -55,7 +55,7 @@ class Job(MongoModel):
     artifacts: dict[str, str] = Field(default_factory=dict)
     tags: list[str] = Field(default_factory=list)
     machine_tags: list[str] = Field(default_factory=list)
-    objects_in_field: list[dict[str, Any]] = Field(default_factory=list)
+    objects_in_field: list[Any] = Field(default_factory=list)
     annotations: list[dict[str, Any]] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     started_at: Optional[datetime] = None
