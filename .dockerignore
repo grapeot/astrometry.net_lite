@@ -1,0 +1,9 @@
+.git
+venv
+frontend/node_modules
+frontend/dist
+mongodb_data
+astrometry_indexes
+.data
+__pycache__
+*.pyc

@@ -41,6 +41,7 @@ _最后更新：2025-11-07_
 ### 仍需提供/确认的信息
 - 明确 Mongo 实例的长期托管策略（自管/Atlas）及多环境（dev/staging/prod）连接串。
 - 下载注释图（annotated image）的原始输出规格（PNG/JPEG？带透明度？）以便 CLI worker 正确调用绘图脚本。
+- CLI 产出的校准/overlay：决定是否引入 astropy/astrometry util 解析 WCS，还是提供自定义 lightweight 解析以填充 `/jobs/*/calibration` 以及 `sdss_image_for_wcs`、`galex_image_for_wcs`。
 
 ## 目标架构
 ```
