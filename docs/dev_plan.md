@@ -60,6 +60,7 @@ _最后更新：2025-11-07_
 - 明确 Mongo 实例的长期托管策略（自管/Atlas）及多环境（dev/staging/prod）连接串。
 - 下载注释图（annotated image）的原始输出规格（PNG/JPEG？带透明度？）以便 CLI worker 正确调用绘图脚本。
 - CLI 产出的校准/overlay：决定是否引入 astropy/astrometry util 解析 WCS，还是提供自定义 lightweight 解析以填充 `/jobs/*/calibration` 以及 `sdss_image_for_wcs`、`galex_image_for_wcs`。
+- **当前约束**：Homebrew 包未自带 `wcs2kml`，默认禁用 `--kmz`，后台也不生成 KML/KMZ。若未来需要，可单独安装 `wcs2kml` 或在镜像中构建，再开启对应路由。
 
 ## 目标架构
 ```

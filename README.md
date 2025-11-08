@@ -68,6 +68,7 @@ docker run --rm -p 8000:8000 --env-file .env \
 ```
 
 > 镜像内需要 astrometry.net CLI，可在 Dockerfile 中添加二进制或挂载宿主路径。
+> 默认**不**生成 KML/KMZ，因为 Homebrew 版没有 `wcs2kml`。如需 KMZ，请手动安装该工具并在执行 CLI 时加上 `--kmz` 参数。
 7. Use the legacy Python client pointing at `http://localhost:8000/api/`.
 
 ## Project Layout

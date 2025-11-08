@@ -43,6 +43,7 @@ _Updated: 2025-11-07_
 1. Annotated image 需确定最终格式（PNG? JPEG?）与 CLI 命令；若需自定义脚本请提供示例。（目前路由存在但暂不生成文件）
 2. 如果需要 `jobs_by_tag` 真正查 tag，是否保留 Mongo `tags` 集合或实时扫描 `jobs`？默认准备稀疏字段。
 3. Docker 化要求：基础镜像首选 `python:3.12-slim` 吗？是否需要包含 Homebrew CLI？
+4. KMZ/KML 默认关闭（缺少 `wcs2kml`）；后续若要启用需明确安装路径和部署策略。
 
 ## Recent Notes
 - 2025-11-07：完成 `.env` 初始化、确认 CLI 路径、更新 dev_plan、建立此 working log。
