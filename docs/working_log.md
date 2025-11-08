@@ -47,3 +47,4 @@ _Updated: 2025-11-07_
 ## Recent Notes
 - 2025-11-07：完成 `.env` 初始化、确认 CLI 路径、更新 dev_plan、建立此 working log。
 - 2025-11-07：实现 FastAPI 骨架 + Mongo 队列 + worker + React 控制台。遗留：calibration 数据解析、SDSS/GALEX overlay、jobs_by_tag 更细粒度过滤。
+- 2025-11-08：本地 `solve-field` 已在 `test.jpg` 上跑通（示例命令见 dev_plan），确认输出文件集及日志可用于填充 calibration/annotations。

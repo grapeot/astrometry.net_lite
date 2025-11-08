@@ -28,6 +28,24 @@ _最后更新：2025-11-07_
 - `astrometry-engine`: `/opt/homebrew/bin/astrometry-engine`
 > 这些路径写入默认配置；通过 `.env` 的 `SOLVE_FIELD_BIN`, `AUGMENT_XYLIST_BIN`, `ASTROMETRY_ENGINE_BIN` 覆盖。
 
+#### 实测命令（`test.jpg`）
+```
+/opt/homebrew/bin/solve-field \
+  --overwrite \
+  --dir data/manual \
+  --temp-dir data/manual \
+  --index-dir astrometry_indexes \
+  --wcs data/manual/test.wcs.fits \
+  --new-fits data/manual/test.new.fits \
+  --corr data/manual/test.corr.fits \
+  --rdls data/manual/test.rdls.fits \
+  --match data/manual/test.match.fits \
+  --kmz data/manual/test.sky.kmz \
+  test.jpg
+```
+- 默认额外产出：`test.solved`, `test.axy`, `test-indx.png`, `test-ngc.png`, `test-objs.png` 等，可直接挂载至 `/annotated_display` 或作为调试制品。
+- 求解日志包含中心坐标、像素尺度、旋转角、命中星体列表等，可解析生成 `/jobs/{id}/calibration`、`/jobs/{id}/objects_in_field` 响应。
+
 ### MongoDB 本地启动（测试用）
 - **安装**：`brew tap mongodb/brew && brew install mongodb-community`
 - **Binary 路径**：`/opt/homebrew/bin/mongod`

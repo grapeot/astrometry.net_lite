@@ -32,11 +32,11 @@ PY
    ```
 5. Seed an API key (once per environment):
    ```bash
-   python scripts/seed_api_key.py my-secret-key user@example.com
+   PYTHONPATH=. python scripts/seed_api_key.py my-secret-key user@example.com
    ```
-6. Launch the API:
+6. Launch the API (reads `.env` for `API_HOST`/`API_PORT`):
    ```bash
-   uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
+   ./scripts/start:backend
    ```
 7. (Optional) Run the worker in another shell to execute queued jobs:
    ```bash
@@ -51,6 +51,8 @@ The React dashboard lives in `frontend/` (Vite + TypeScript).
 cd frontend
 npm install    # already done once
 npm run dev    # launches http://localhost:5173
+## 或使用统一脚本（会自动进入 frontend 目录）
+../scripts/start:frontend
 ```
 
 Set `VITE_API_BASE` in `frontend/.env.development` if your API runs on a different host.
