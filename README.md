@@ -40,8 +40,11 @@ PY
    ```
 7. (Optional) Run the worker in another shell to execute queued jobs:
    ```bash
-   python -m workers.run_worker
+   ./scripts/start_worker.sh
    ```
+   > 日志写入 `logs/worker.log`，PID 记录在 `logs/worker.pid`，若需重启先 `kill $(cat logs/worker.pid)`。
+
+> 典型本地开发会同时运行 4 个进程：MongoDB、后台 API（`start_backend.sh`）、队列 worker（`start_worker.sh`）和前端（`start_frontend.sh`）。
 
 ### Frontend
 
