@@ -8,7 +8,7 @@ _Updated: 2025-11-07_
 ## Milestone Checklist
 - [x] M1：后端骨架（FastAPI、Pydantic Settings、Mongo 依赖注入）
 - [x] M2：Mongo 队列 + CLI Worker（含 annotated image 生成）
-- [ ] M3：兼容 API（登录/上传/查询/下载）
+- [x] M3：兼容 API（登录/上传/查询/下载）- **已完成，所有必需 API 已实现并测试通过**
 - [x] M4：前端最小界面（登录、上传、Job 列表/详情）
 - [ ] M5：测试与文档（集成 + 单元 + README + Dockerfile）
 
@@ -50,3 +50,4 @@ _Updated: 2025-11-07_
 - 2025-11-07：实现 FastAPI 骨架 + Mongo 队列 + worker + React 控制台。遗留：calibration 数据解析、SDSS/GALEX overlay、jobs_by_tag 更细粒度过滤。
 - 2025-11-08：本地 `solve-field` 已在 `test.jpg` 上跑通（示例命令见 dev_plan），确认输出文件集及日志可用于填充 calibration/annotations。
 - 2025-11-08：明确标记 SDSS/GALEX overlay 为"暂不支持"（返回友好的错误信息而非 501），创建完整测试脚本 `scripts/test_service.py` 和启动指南 `docs/START_GUIDE.md`。
+- 2025-11-26：修复文件下载路由404问题（创建独立的file_router，文件下载路由不在/api前缀下），所有文件下载API已测试通过。**M3 里程碑完成：所有必需 API 已实现并测试通过。**
