@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import './App.css'
 import {
   API_ROOT,
@@ -203,8 +203,8 @@ function App() {
                     const details = jobDetails[job.id]
                     const isExpanded = selectedJobId === job.id
                     return (
-                      <>
-                        <tr key={job.id}>
+                      <React.Fragment key={job.id}>
+                        <tr>
                           <td>
                             <button
                               onClick={() => handleJobClick(job.id)}
@@ -239,7 +239,7 @@ function App() {
                           </td>
                         </tr>
                         {isExpanded && (
-                          <tr key={`${job.id}-details`}>
+                          <tr>
                             <td colSpan={4} style={{ padding: '1.5rem', backgroundColor: 'rgba(0, 0, 0, 0.2)' }}>
                               {details?.loading ? (
                                 <div>加载中...</div>
@@ -300,7 +300,7 @@ function App() {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </React.Fragment>
                     )
                   })}
                 </tbody>

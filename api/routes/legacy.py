@@ -250,18 +250,67 @@ async def galex_image_for_wcs(request: Request):
     }
 
 
+def _get_artifact_filename(artifact_type: ArtifactType) -> str:
+    """Map artifact type to actual filename."""
+    mapping = {
+        ArtifactType.wcs: "wcs.fits",
+        ArtifactType.new_fits: "new.fits",
+        ArtifactType.corr: "corr.fits",
+        ArtifactType.kml: "sky.kmz",
+        ArtifactType.annotated: "annotated.png",
+    }
+    return mapping.get(artifact_type, f"{artifact_type.value}.fits")
+
+
 async def _artifact_response(job_id: int, artifact_type: ArtifactType, db: AsyncIOMotorDatabase) -> FileResponse:
     job = await job_service.get_job_by_job_id(db, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="job not found")
+    
+    # Get default filename for this artifact type
+    default_filename = _get_artifact_filename(artifact_type)
+    
+    # Ensure job_output_dir is absolute
+    job_output_dir = settings.job_output_dir
+    if not job_output_dir.is_absolute():
+        job_output_dir = job_output_dir.resolve()
+    
+    # Try to get path from artifacts, otherwise use default location
     artifacts = job.artifacts or {}
     rel = artifacts.get(artifact_type.value)
-    path = Path(rel) if rel else settings.job_output_dir / str(job_id) / f"{artifact_type.value}.fits"
+    
+    if rel:
+        # Path stored in MongoDB
+        stored_path = Path(rel)
+        if stored_path.is_absolute():
+            path = stored_path
+        else:
+            # Relative path: try in job directory first
+            job_dir_path = job_output_dir / str(job_id) / stored_path.name
+            if job_dir_path.exists():
+                path = job_dir_path
+            else:
+                # Try resolving relative to current working directory
+                path = stored_path.resolve()
+    else:
+        # No path in MongoDB, use default location
+        path = job_output_dir / str(job_id) / default_filename
+    
+    # Ensure absolute path for final check
+    if not path.is_absolute():
+        path = path.resolve()
+    
     if not path.exists():
-        raise HTTPException(status_code=404, detail="file not ready")
+        raise HTTPException(
+            status_code=404,
+            detail=f"file not ready: {path} (job_id={job_id}, type={artifact_type.value}, artifacts={artifacts}, job_output_dir={job_output_dir})"
+        )
+    
     media_type = "application/fits"
     if artifact_type == ArtifactType.annotated:
         media_type = "image/png"
+    elif artifact_type == ArtifactType.kml:
+        media_type = "application/vnd.google-earth.kmz"
     return FileResponse(path, media_type=media_type, filename=path.name)
 
 
