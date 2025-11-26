@@ -349,7 +349,22 @@ async def annotated_display(job_id: int, db: AsyncIOMotorDatabase = Depends(get_
     if not job:
         raise HTTPException(status_code=404, detail="job not found")
     annotations_path = job.artifacts.get(ArtifactType.annotated.value) if job.artifacts else None
-    path = Path(annotations_path) if annotations_path else settings.job_output_dir / str(job_id) / "annotated.png"
+    if annotations_path:
+        path = Path(annotations_path)
+        if not path.is_absolute():
+            path = (settings.job_output_dir / str(job_id) / path.name).resolve()
+    else:
+        # Fallback to default location
+        path = settings.job_output_dir / str(job_id) / "annotated.png"
+        if not path.is_absolute():
+            path = path.resolve()
+    
     if not path.exists():
         raise HTTPException(status_code=404, detail="annotated image not ready")
-    return FileResponse(path, media_type="image/png", filename=path.name)
+    
+    # Determine media type based on file extension
+    media_type = "image/png"
+    if path.suffix.lower() in (".jpg", ".jpeg"):
+        media_type = "image/jpeg"
+    
+    return FileResponse(path, media_type=media_type, filename=path.name)

@@ -146,5 +146,14 @@ async def solve_job(db: AsyncIOMotorDatabase, job_id: int, payload: dict[str, An
     await job_service.add_artifact(db, job_id, ArtifactType.corr, str(job_dir / "corr.fits"))
     if getattr(settings, "enable_kmz", False):
         await job_service.add_artifact(db, job_id, ArtifactType.kml, str(job_dir / "sky.kmz"))
-    annotated = annotator.generate_placeholder_annotation(job_id, source_path)
+    
+    # Generate annotated image
+    radius = calibration.get("radius", 1.0) if calibration else 1.0
+    try:
+        annotated = await annotator.generate_annotation(
+            job_id, source_path, job_dir / "wcs.fits", radius
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to generate annotation for job %s: %s", job_id, exc)
+        annotated = annotator.generate_placeholder_annotation(job_id, source_path)
     await job_service.add_artifact(db, job_id, ArtifactType.annotated, str(annotated))

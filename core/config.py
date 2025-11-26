@@ -17,6 +17,7 @@ class AppSettings(BaseSettings):
     astrometry_index_dir: Path = Path("./astrometry_indexes")
     job_output_dir: Path = Path("./data/jobs")
     upload_cache_dir: Path = Path("./data/uploads")
+    catalogs_dir: Path = Path("./catalogs")
 
     queue_visibility_timeout_seconds: int = 300
     enable_kmz: bool = False
