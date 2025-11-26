@@ -24,6 +24,29 @@ export interface JobInfoResponse {
   status: string;
   original_filename?: string;
   calibration?: Record<string, unknown>;
+  objects_in_field?: string[];
+  tags?: string[];
+  machine_tags?: string[];
+}
+
+export interface JobCalibrationResponse {
+  ra?: number;
+  dec?: number;
+  radius?: number;
+  pixscale?: number;
+  orientation?: number;
+  parity?: number;
+  width_arcsec?: number;
+  height_arcsec?: number;
+  error?: string;
+}
+
+export interface JobAnnotationsResponse {
+  annotations: Array<{ text?: string; [key: string]: unknown }>;
+}
+
+export interface JobObjectsResponse {
+  objects_in_field: string[];
 }
 
 export async function login(apikey: string): Promise<LoginResponse> {
@@ -71,6 +94,24 @@ export async function fetchJobStatus(jobId: number): Promise<JobStatusResponse> 
 
 export async function fetchJobInfo(jobId: number): Promise<JobInfoResponse> {
   return request<JobInfoResponse>(`/jobs/${jobId}/info`, {
+    method: 'GET',
+  });
+}
+
+export async function fetchJobCalibration(jobId: number): Promise<JobCalibrationResponse> {
+  return request<JobCalibrationResponse>(`/jobs/${jobId}/calibration`, {
+    method: 'GET',
+  });
+}
+
+export async function fetchJobAnnotations(jobId: number): Promise<JobAnnotationsResponse> {
+  return request<JobAnnotationsResponse>(`/jobs/${jobId}/annotations`, {
+    method: 'GET',
+  });
+}
+
+export async function fetchJobObjects(jobId: number): Promise<JobObjectsResponse> {
+  return request<JobObjectsResponse>(`/jobs/${jobId}/objects_in_field`, {
     method: 'GET',
   });
 }
