@@ -28,9 +28,14 @@ type JobDetails = {
   loading: boolean
 }
 
+const SESSION_STORAGE_KEY = 'astrometry_session'
+
 function App() {
   const [apiKey, setApiKey] = useState('')
-  const [session, setSession] = useState<string | null>(null)
+  const [session, setSession] = useState<string | null>(() => {
+    // 从 localStorage 恢复 session
+    return localStorage.getItem(SESSION_STORAGE_KEY)
+  })
   const [jobs, setJobs] = useState<JobRow[]>([])
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -47,6 +52,8 @@ function App() {
       const res = await login(apiKey.trim())
       if (res.status === 'success' && res.session) {
         setSession(res.session)
+        // 保存到 localStorage
+        localStorage.setItem(SESSION_STORAGE_KEY, res.session)
       } else {
         setMessage(res.errormessage ?? '登录失败')
       }
@@ -55,6 +62,15 @@ function App() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleLogout = () => {
+    setSession(null)
+    setApiKey('')
+    setJobs([])
+    setJobDetails({})
+    // 清除 localStorage
+    localStorage.removeItem(SESSION_STORAGE_KEY)
   }
 
   const refreshJobs = useCallback(async () => {
@@ -165,6 +181,18 @@ function App() {
 
       {session && (
         <>
+          <section className="panel">
+            <div className="panel-header">
+              <h2>已登录</h2>
+              <button onClick={handleLogout} style={{ background: 'rgba(248, 113, 113, 0.2)', color: '#f87171' }}>
+                登出
+              </button>
+            </div>
+            <p style={{ fontSize: '0.9rem', color: '#999', marginTop: '0.5rem' }}>
+              Session: {session.substring(0, 20)}...
+            </p>
+          </section>
+
           <section className="panel">
             <h2>上传图像</h2>
             <form onSubmit={handleUpload} className="form">
