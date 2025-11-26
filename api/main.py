@@ -10,7 +10,11 @@ app = FastAPI(title="Astrometry Lite API", lifespan=lifespan)
 if settings.frontend_origin:
     origins = [settings.frontend_origin]
 else:
-    origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    # 默认允许本地开发的前端端口
+    origins = [
+        f"http://localhost:{settings.frontend_port}",
+        f"http://127.0.0.1:{settings.frontend_port}",
+    ]
 
 app.add_middleware(
     CORSMiddleware,

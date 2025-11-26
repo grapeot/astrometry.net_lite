@@ -18,7 +18,7 @@ if [ -f "$PROJECT_ROOT/.env" ]; then
 fi
 
 HOST="${API_HOST:-127.0.0.1}"
-PORT="${API_PORT:-8000}"
+PORT="${API_PORT:-8002}"
 LOG_DIR="$PROJECT_ROOT/logs"
 LOG_FILE="$LOG_DIR/backend.log"
 

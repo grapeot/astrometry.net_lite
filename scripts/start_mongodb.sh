@@ -54,3 +54,4 @@ exec "$MONGOD_BIN" \
     --logappend \
     --bind_ip 127.0.0.1
 
+

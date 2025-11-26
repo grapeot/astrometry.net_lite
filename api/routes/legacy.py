@@ -234,12 +234,20 @@ async def jobs_by_tag(request: Request, db: AsyncIOMotorDatabase = Depends(get_d
 
 @router.post("/sdss_image_for_wcs")
 async def sdss_image_for_wcs(request: Request):
-    raise HTTPException(status_code=501, detail="SDSS overlay not implemented")
+    """SDSS overlay feature is not supported in this lite version."""
+    return {
+        "status": "error",
+        "errormessage": "SDSS overlay is not supported in Astrometry Lite. This feature requires external SDSS API integration which is not included in the simplified implementation.",
+    }
 
 
 @router.post("/galex_image_for_wcs")
 async def galex_image_for_wcs(request: Request):
-    raise HTTPException(status_code=501, detail="GALEX overlay not implemented")
+    """GALEX overlay feature is not supported in this lite version."""
+    return {
+        "status": "error",
+        "errormessage": "GALEX overlay is not supported in Astrometry Lite. This feature requires external GALEX API integration which is not included in the simplified implementation.",
+    }
 
 
 async def _artifact_response(job_id: int, artifact_type: ArtifactType, db: AsyncIOMotorDatabase) -> FileResponse:

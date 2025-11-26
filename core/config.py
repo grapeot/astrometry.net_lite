@@ -26,9 +26,10 @@ class AppSettings(BaseSettings):
     astrometry_engine_bin: str = "/opt/homebrew/bin/astrometry-engine"
 
     api_host: str = "127.0.0.1"
-    api_port: int = 8000
+    api_port: int = 8002
 
     frontend_origin: Optional[str] = None
+    frontend_port: int = 5173
 
     model_config = SettingsConfigDict(
         env_file=".env",

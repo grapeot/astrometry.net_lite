@@ -30,8 +30,8 @@ _Updated: 2025-11-07_
 | `GET/POST /api/jobs/{id}/info` | ✅ | ☑ | 包含基础 metadata |
 | `GET/POST /api/myjobs/` | ✅ | ☑ | session=API key |
 | `GET/POST /api/jobs_by_tag` | ✅ | ☑ | 简单标签搜索 |
-| `/api/sdss_image_for_wcs` | ✅ | ☐ | TODO: 501 not implemented |
-| `/api/galex_image_for_wcs` | ✅ | ☐ | TODO |
+| `/api/sdss_image_for_wcs` | ✅ | ☑ | 明确标记为"暂不支持"，返回友好的错误信息 |
+| `/api/galex_image_for_wcs` | ✅ | ☑ | 明确标记为"暂不支持"，返回友好的错误信息 |
 | `/wcs_file/{jobid}` | ✅ | ☑ | 读 artifacts |
 | `/kml_file/{jobid}/` | ✅ | ☑ | 默认禁用；需安装 `wcs2kml` 才能生效 |
 | `/new_fits_file/{jobid}/` | ✅ | ☑ | 读 artifacts |
@@ -43,8 +43,10 @@ _Updated: 2025-11-07_
 2. 如果需要 `jobs_by_tag` 真正查 tag，是否保留 Mongo `tags` 集合或实时扫描 `jobs`？默认准备稀疏字段。
 3. Docker 化要求：基础镜像首选 `python:3.12-slim` 吗？是否需要包含 Homebrew CLI？
 4. KMZ/KML 默认关闭（缺少 `wcs2kml`）；后续若要启用需明确安装路径和部署策略。
+5. ✅ **已解决**：SDSS/GALEX overlay 明确标记为"暂不支持"，返回友好的错误信息。
 
 ## Recent Notes
 - 2025-11-07：完成 `.env` 初始化、确认 CLI 路径、更新 dev_plan、建立此 working log。
 - 2025-11-07：实现 FastAPI 骨架 + Mongo 队列 + worker + React 控制台。遗留：calibration 数据解析、SDSS/GALEX overlay、jobs_by_tag 更细粒度过滤。
 - 2025-11-08：本地 `solve-field` 已在 `test.jpg` 上跑通（示例命令见 dev_plan），确认输出文件集及日志可用于填充 calibration/annotations。
+- 2025-11-08：明确标记 SDSS/GALEX overlay 为"暂不支持"（返回友好的错误信息而非 501），创建完整测试脚本 `scripts/test_service.py` 和启动指南 `docs/START_GUIDE.md`。

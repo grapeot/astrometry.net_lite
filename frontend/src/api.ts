@@ -1,4 +1,4 @@
-export const API_BASE: string = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8000/api';
+export const API_BASE: string = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8002/api';
 export const API_ROOT = API_BASE.replace(/\/api\/?$/, '');
 
 async function request<T>(path: string, init: RequestInit): Promise<T> {
