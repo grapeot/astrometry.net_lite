@@ -20,6 +20,7 @@ from services import submissions as submission_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["legacy"])
+file_router = APIRouter(tags=["files"])  # Separate router for file downloads (no /api prefix)
 
 
 async def _parse_request_payload(request: Request) -> tuple[dict[str, Any], dict[str, UploadFile]]:
@@ -314,22 +315,22 @@ async def _artifact_response(job_id: int, artifact_type: ArtifactType, db: Async
     return FileResponse(path, media_type=media_type, filename=path.name)
 
 
-@router.get("/wcs_file/{job_id}")
+@file_router.get("/wcs_file/{job_id}")
 async def wcs_file(job_id: int, db: AsyncIOMotorDatabase = Depends(get_db)):
     return await _artifact_response(job_id, ArtifactType.wcs, db)
 
 
-@router.get("/new_fits_file/{job_id}/")
+@file_router.get("/new_fits_file/{job_id}/")
 async def new_fits_file(job_id: int, db: AsyncIOMotorDatabase = Depends(get_db)):
     return await _artifact_response(job_id, ArtifactType.new_fits, db)
 
 
-@router.get("/corr_file/{job_id}")
+@file_router.get("/corr_file/{job_id}")
 async def corr_file(job_id: int, db: AsyncIOMotorDatabase = Depends(get_db)):
     return await _artifact_response(job_id, ArtifactType.corr, db)
 
 
-@router.get("/kml_file/{job_id}/")
+@file_router.get("/kml_file/{job_id}/")
 async def kml_file(job_id: int, db: AsyncIOMotorDatabase = Depends(get_db)):
     job = await job_service.get_job_by_job_id(db, job_id)
     if not job:
@@ -342,7 +343,7 @@ async def kml_file(job_id: int, db: AsyncIOMotorDatabase = Depends(get_db)):
     return FileResponse(path, media_type="application/vnd.google-earth.kmz", filename=path.name)
 
 
-@router.get("/annotated_display/{job_id}")
+@file_router.get("/annotated_display/{job_id}")
 async def annotated_display(job_id: int, db: AsyncIOMotorDatabase = Depends(get_db)):
     job = await job_service.get_job_by_job_id(db, job_id)
     if not job:

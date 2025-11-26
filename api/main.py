@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.routes import admin, legacy
+from api.routes.legacy import file_router
 from core.config import settings
 from services.mongo import lifespan
 
@@ -26,6 +27,7 @@ app.add_middleware(
 
 app.include_router(admin.router, prefix="/api")
 app.include_router(legacy.router, prefix="/api")
+app.include_router(file_router)  # File download routes without /api prefix
 
 
 @app.get("/")
