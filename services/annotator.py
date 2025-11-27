@@ -136,13 +136,23 @@ def _are_objects_duplicate(obj1: CelestialObject, obj2: CelestialObject, duplica
         return True
     
     # Check radius overlap (if both have radii)
+    # Only consider overlap if the distance is significantly less than the sum of radii
+    # This avoids false positives where large objects just barely touch
     if obj1.ang_diameter is not None and obj2.ang_diameter is not None:
         # Convert arcmin to degrees
         radius1_deg = obj1.ang_diameter / 60.0 / 2.0
         radius2_deg = obj2.ang_diameter / 60.0 / 2.0
         
-        # If circles overlap, consider duplicate
-        if distance_deg < (radius1_deg + radius2_deg):
+        # If circles overlap significantly, consider duplicate
+        # Require that the overlap is substantial - the smaller object must be mostly within the larger one
+        # This prevents large objects from being considered duplicates just because they're in the same region
+        min_radius = min(radius1_deg, radius2_deg)
+        max_radius = max(radius1_deg, radius2_deg)
+        
+        # Only consider duplicate if the smaller object is mostly contained within the larger one
+        # This means: distance + min_radius < max_radius (smaller object fits inside larger)
+        # And distance must be small relative to the smaller radius (< 3x smaller radius)
+        if (distance_deg + min_radius) < max_radius and distance_deg < min_radius * 3:
             return True
     
     return False
