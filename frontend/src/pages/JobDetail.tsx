@@ -88,6 +88,14 @@ export function JobDetail() {
             <img
               src={`${API_ROOT}${job.annotated_image_url}`}
               alt={`Annotated Job ${job.job_id}`}
+              onError={(e) => {
+                console.error('Failed to load annotated image:', job.annotated_image_url);
+                // Fallback to original image on error
+                const target = e.target as HTMLImageElement;
+                if (job.original_image_url) {
+                  target.src = `${API_ROOT}${job.original_image_url}`;
+                }
+              }}
             />
           </div>
         ) : job.original_image_url ? (

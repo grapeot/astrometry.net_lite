@@ -524,13 +524,29 @@ async def annotated_display(job_id: int, db: AsyncIOMotorDatabase = Depends(get_
     annotations_path = job.artifacts.get(ArtifactType.annotated.value) if job.artifacts else None
     if annotations_path:
         path = Path(annotations_path)
-        if not path.is_absolute():
-            path = (settings.job_output_dir / str(job_id) / path.name).resolve()
+        if path.is_absolute():
+            # Already absolute path, use as-is
+            pass
+        else:
+            # Relative path - check if it's just a filename or contains directory
+            if "/" in str(path) or "\\" in str(path):
+                # Contains directory, resolve relative to job_output_dir
+                path = (settings.job_output_dir / path).resolve()
+            else:
+                # Just filename, assume it's in the job directory
+                path = (settings.job_output_dir / str(job_id) / path.name).resolve()
     else:
-        # Fallback to default location
-        path = settings.job_output_dir / str(job_id) / "annotated.png"
-        if not path.is_absolute():
-            path = path.resolve()
+        # Fallback to default location - try common extensions
+        for ext in [".jpg", ".jpeg", ".png"]:
+            fallback_path = settings.job_output_dir / str(job_id) / f"annotated{ext}"
+            if fallback_path.exists():
+                path = fallback_path.resolve()
+                break
+        else:
+            # No annotated image found
+            path = settings.job_output_dir / str(job_id) / "annotated.png"
+            if not path.is_absolute():
+                path = path.resolve()
     
     if not path.exists():
         raise HTTPException(status_code=404, detail="annotated image not ready")

@@ -60,10 +60,24 @@ export function useJobDetail(jobId: number) {
     }
   }, [jobId, logOffset]);
 
+  // Load initial log content (for completed jobs too)
+  const loadInitialLog = useCallback(async () => {
+    try {
+      const data: JobLogResponse = await fetchJobLog(jobId, 0);
+      if (data.log) {
+        setLog(data.log);
+        setLogOffset(data.offset);
+      }
+    } catch (err) {
+      console.error('Failed to load initial log:', err);
+    }
+  }, [jobId]);
+
   // Initial load
   useEffect(() => {
     loadDetail();
-  }, [loadDetail]);
+    loadInitialLog();
+  }, [loadDetail, loadInitialLog]);
 
   // Start polling when job is solving
   useEffect(() => {
