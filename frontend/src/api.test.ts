@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { fetchJobList, fetchJobDetail, fetchJobLog } from './api'
 
 // Note: MSW server is started in setup.ts

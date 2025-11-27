@@ -118,10 +118,9 @@ export const handlers = [
   }),
 
   // Get job log
-  http.get(`${API_BASE}/jobs/:jobId/log`, ({ params, request }) => {
+  http.get(`${API_BASE}/jobs/:jobId/log`, ({ request }) => {
     const url = new URL(request.url)
     const offset = parseInt(url.searchParams.get('offset') || '0')
-    const jobId = parseInt(params.jobId as string)
 
     return HttpResponse.json({
       status: 'success',

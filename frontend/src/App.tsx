@@ -57,7 +57,7 @@ function App() {
       } else {
         setMessage(res.errormessage ?? '登录失败')
       }
-    } catch (error) {
+    } catch {
       setMessage('网络错误，稍后再试')
     } finally {
       setLoading(false)
@@ -84,7 +84,7 @@ function App() {
         rows.push({ id, status: status.status, filename: info.original_filename })
       }
       setJobs(rows)
-    } catch (error) {
+    } catch {
       setMessage('无法获取任务列表')
     } finally {
       setLoading(false)
@@ -114,7 +114,7 @@ function App() {
       } else {
         setMessage(res.errormessage ?? '上传失败')
       }
-    } catch (error) {
+    } catch {
       setMessage('上传出错')
     } finally {
       setUploading(false)
@@ -136,7 +136,7 @@ function App() {
         ...prev,
         [jobId]: { calibration: calibration || undefined, annotations: annotations || undefined, objects: objects || undefined, loading: false },
       }))
-    } catch (error) {
+    } catch {
       setJobDetails((prev) => ({ ...prev, [jobId]: { loading: false } }))
     }
   }, [jobDetails])
