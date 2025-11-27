@@ -37,7 +37,6 @@ COPY scripts ./scripts
 # Set default astrometry.net binary paths (can be overridden via environment variables)
 # These binaries are installed via apt-get in /usr/bin/
 ENV SOLVE_FIELD_BIN=/usr/bin/solve-field \
-    AUGMENT_XYLIST_BIN=/usr/bin/augment-xylist \
     ASTROMETRY_ENGINE_BIN=/usr/bin/astrometry-engine
 
 EXPOSE 8002
