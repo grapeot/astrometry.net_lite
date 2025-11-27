@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, AsyncGenerator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from bson import ObjectId
 
-from domain.enums import JobStatus, SubmissionStatus
 from domain.models import Job, Submission, QueueMessage
 
 

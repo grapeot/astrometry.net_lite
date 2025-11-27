@@ -7,7 +7,7 @@ from typing import Any, Optional
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from domain.enums import JobStatus, SubmissionStatus
+from domain.enums import SubmissionStatus
 from domain.models import Job, Submission
 from services.ids import get_next_sequence
 from services import queue as queue_service

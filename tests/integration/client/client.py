@@ -27,7 +27,7 @@ def json2python(data):
     """Parse JSON string to Python object."""
     try:
         return json.loads(data)
-    except:
+    except (json.JSONDecodeError, TypeError, ValueError):
         pass
     return None
 

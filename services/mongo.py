@@ -1,4 +1,3 @@
-from collections.abc import AsyncIterator
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 

@@ -2,7 +2,6 @@
 """
 统计代码库代码行数（排除net文件夹）
 """
-import os
 from pathlib import Path
 from collections import defaultdict
 import json

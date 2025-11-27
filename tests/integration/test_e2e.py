@@ -43,7 +43,7 @@ def download_test_image(url: str, output_path: Path) -> bool:
             print(f"✅ Downloaded test image: {output_path} ({output_path.stat().st_size} bytes)")
             return True
         else:
-            print(f"❌ Downloaded file is empty or doesn't exist")
+            print("❌ Downloaded file is empty or doesn't exist")
             return False
     except Exception as e:
         print(f"❌ Failed to download test image: {e}")
@@ -60,12 +60,12 @@ def test_login(client: Client, api_key: str) -> bool:
     try:
         client.login(api_key)
         if client.session:
-            print(f"✅ Login successful!")
+            print("✅ Login successful!")
             print(f"   Session key: {client.session}")
             print(f"   Session key length: {len(client.session)}")
             return True
         else:
-            print(f"❌ Login failed: No session key returned")
+            print("❌ Login failed: No session key returned")
             return False
     except Exception as e:
         print(f"❌ Login failed: {e}")
@@ -87,7 +87,7 @@ def test_upload(client: Client, image_path: Path) -> dict:
     try:
         result = client.upload(str(image_path))
         if result.get('status') == 'success':
-            print(f"✅ Upload successful!")
+            print("✅ Upload successful!")
             print(f"   Submission ID: {result.get('subid')}")
             print(f"   Jobs: {result.get('jobs', [])}")
             return result

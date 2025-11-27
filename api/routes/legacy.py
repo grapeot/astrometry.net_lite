@@ -12,7 +12,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from api.deps import get_db
 from core.config import settings
-from domain.enums import ArtifactType, JobStatus
+from domain.enums import ArtifactType
 from domain.models import Job
 from services import jobs as job_service
 from services import submissions as submission_service

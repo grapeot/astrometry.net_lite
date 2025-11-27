@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import HTTPException, Request, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from core.config import settings

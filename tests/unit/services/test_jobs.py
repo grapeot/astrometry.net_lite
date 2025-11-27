@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-from bson import ObjectId
 
 from domain.enums import ArtifactType, JobStatus
 from domain.models import Job

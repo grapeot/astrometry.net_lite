@@ -78,9 +78,6 @@ def adjust_label_position(label_x: float, label_y: float, text: str, font: Image
     Returns:
         (adjusted_x, adjusted_y) label position
     """
-    # Calculate text bounding box
-    bbox = get_text_bbox(text, label_x, label_y, font)
-    
     # Try different positions: above, below, left, right, and diagonals
     offsets = [
         (0, -radius_pixels - font_size - 10),  # Above (original)

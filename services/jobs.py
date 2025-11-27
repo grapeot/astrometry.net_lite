@@ -7,7 +7,6 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from domain.enums import ArtifactType, JobStatus
 from domain.models import Artifact, Job
-from services.storage import prepare_job_dir
 
 JOBS_COLLECTION = "jobs"
 ARTIFACTS_COLLECTION = "artifacts"

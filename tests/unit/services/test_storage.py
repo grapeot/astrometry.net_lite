@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch, mock_open
 
-import pytest
 
 from services import storage
 
@@ -64,7 +63,7 @@ class TestPrepareJobDir:
         mock_settings.job_output_dir = MagicMock()
         mock_settings.job_output_dir.__truediv__ = MagicMock(return_value=mock_job_dir)
 
-        result = storage.prepare_job_dir(12345)
+        storage.prepare_job_dir(12345)
 
         mock_job_dir.mkdir.assert_called_once_with(parents=True, exist_ok=True)
 
@@ -82,11 +81,10 @@ class TestCopyToJob:
         mock_job_dir.__truediv__ = MagicMock(return_value=Path("/data/jobs/12345/test.jpg"))
         mock_prepare.return_value = mock_job_dir
 
-        source = Path("/tmp/test.jpg")
         source_mock = MagicMock(spec=Path)
         source_mock.name = "test.jpg"
 
-        result = storage.copy_to_job(12345, source_mock)
+        storage.copy_to_job(12345, source_mock)
 
         mock_prepare.assert_called_once_with(12345)
         mock_copy.assert_called_once()
@@ -104,7 +102,7 @@ class TestCopyToJob:
         source_mock = MagicMock(spec=Path)
         source_mock.name = "original.jpg"
 
-        result = storage.copy_to_job(12345, source_mock, target_name="renamed.jpg")
+        storage.copy_to_job(12345, source_mock, target_name="renamed.jpg")
 
         # Verify the target name was used
         mock_job_dir.__truediv__.assert_called_with("renamed.jpg")

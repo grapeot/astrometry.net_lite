@@ -56,7 +56,6 @@ async def generate_for_job(job_id: int, output_path: Path | None = None, source_
         # Try to get from MongoDB
         try:
             from services.mongo import create_mongo_client, get_database
-            from services import queue as queue_service
             
             client = create_mongo_client()
             db = get_database(client)

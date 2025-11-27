@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import logging
 import math
-from pathlib import Path
 
 from astropy.wcs import WCS
 from PIL import ImageDraw, ImageFont
 
-from services.annotator.catalog import CelestialObject, get_object_color, get_object_type
+from services.annotator.catalog import CelestialObject, get_object_color
 
 logger = logging.getLogger(__name__)
 

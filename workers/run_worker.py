@@ -26,8 +26,6 @@ async def recover_incomplete_jobs(db) -> int:
     Returns:
         Number of jobs recovered/reset
     """
-    from motor.motor_asyncio import AsyncIOMotorDatabase
-
     recovered = 0
     cursor = db["jobs"].find({
         "status": JobStatus.solving.value,
