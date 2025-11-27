@@ -100,7 +100,8 @@ export function useJobDetail(jobId: number) {
     setLog('');
     setLogOffset(0);
     loadDetail();
-  }, [loadDetail]);
+    loadInitialLog();
+  }, [loadDetail, loadInitialLog]);
 
   return {
     job,

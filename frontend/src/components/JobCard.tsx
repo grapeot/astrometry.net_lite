@@ -28,17 +28,31 @@ function formatDate(dateStr: string | null): string {
 }
 
 export function JobCard({ job }: JobCardProps) {
-  const imageUrl = job.has_annotated_image && job.annotated_image_url
+  // Prefer annotated image if available, fallback to original
+  const annotatedUrl = job.has_annotated_image && job.annotated_image_url
     ? `${API_ROOT}${job.annotated_image_url}`
-    : job.original_image_url
-      ? `${API_ROOT}${job.original_image_url}`
-      : null;
+    : null;
+  const originalUrl = job.original_image_url
+    ? `${API_ROOT}${job.original_image_url}`
+    : null;
+  const imageUrl = annotatedUrl || originalUrl;
 
   return (
     <Link to={`/jobs/${job.job_id}`} className="job-card">
       <div className="job-card-image">
         {imageUrl ? (
-          <img src={imageUrl} alt={`Job ${job.job_id}`} loading="lazy" />
+          <img
+            src={imageUrl}
+            alt={`Job ${job.job_id}`}
+            loading="lazy"
+            onError={(e) => {
+              // If annotated image fails, try original
+              const target = e.target as HTMLImageElement;
+              if (imageUrl === annotatedUrl && originalUrl) {
+                target.src = originalUrl;
+              }
+            }}
+          />
         ) : (
           <div className="job-card-placeholder">No Image</div>
         )}

@@ -528,13 +528,10 @@ async def annotated_display(job_id: int, db: AsyncIOMotorDatabase = Depends(get_
             # Already absolute path, use as-is
             pass
         else:
-            # Relative path - check if it's just a filename or contains directory
-            if "/" in str(path) or "\\" in str(path):
-                # Contains directory, resolve relative to job_output_dir
-                path = (settings.job_output_dir / path).resolve()
-            else:
-                # Just filename, assume it's in the job directory
-                path = (settings.job_output_dir / str(job_id) / path.name).resolve()
+            # Relative path - extract filename and look in job directory
+            # Handle cases like "data/jobs/12/annotated.jpg" or just "annotated.jpg"
+            filename = path.name
+            path = (settings.job_output_dir / str(job_id) / filename).resolve()
     else:
         # Fallback to default location - try common extensions
         for ext in [".jpg", ".jpeg", ".png"]:
