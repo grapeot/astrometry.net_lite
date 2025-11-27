@@ -338,8 +338,118 @@ def _get_object_color(obj_type: str) -> tuple[int, int, int]:
     return colors.get(obj_type, colors["unknown"])
 
 
+def _get_text_bbox(text: str, x: float, y: float, font: ImageFont.FreeTypeFont | ImageFont.ImageFont) -> tuple[float, float, float, float]:
+    """Get bounding box for text.
+    
+    Returns:
+        (left, top, right, bottom) bounding box
+    """
+    try:
+        bbox = font.getbbox(text)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        # Account for text anchor (typically top-left)
+        left = x
+        top = y
+        right = x + text_width
+        bottom = y + text_height
+        return (left, top, right, bottom)
+    except Exception:  # noqa: BLE001
+        # Fallback: estimate based on text length
+        text_width = len(text) * font.size if hasattr(font, 'size') else len(text) * 10
+        text_height = font.size if hasattr(font, 'size') else 12
+        return (x, y, x + text_width, y + text_height)
+
+
+def _bboxes_overlap(bbox1: tuple[float, float, float, float], bbox2: tuple[float, float, float, float], padding: float = 5.0) -> bool:
+    """Check if two bounding boxes overlap.
+    
+    Args:
+        bbox1, bbox2: (left, top, right, bottom) bounding boxes
+        padding: Additional padding around boxes
+    
+    Returns:
+        True if boxes overlap
+    """
+    left1, top1, right1, bottom1 = bbox1
+    left2, top2, right2, bottom2 = bbox2
+    
+    # Add padding
+    left1 -= padding
+    top1 -= padding
+    right1 += padding
+    bottom1 += padding
+    
+    left2 -= padding
+    top2 -= padding
+    right2 += padding
+    bottom2 += padding
+    
+    # Check overlap
+    return not (right1 < left2 or left1 > right2 or bottom1 < top2 or top1 > bottom2)
+
+
+def _adjust_label_position(label_x: float, label_y: float, text: str, font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+                          existing_labels: list[tuple[float, float, float, float]], 
+                          object_x: float, object_y: float, radius_pixels: float,
+                          width: int, height: int, font_size: int) -> tuple[float, float]:
+    """Adjust label position to avoid overlap with existing labels (greedy algorithm).
+    
+    Args:
+        label_x, label_y: Initial label position
+        text: Label text
+        font: Font for text
+        existing_labels: List of existing label bounding boxes
+        object_x, object_y: Object position
+        radius_pixels: Object radius in pixels
+        width, height: Image dimensions
+        font_size: Font size in pixels
+    
+    Returns:
+        (adjusted_x, adjusted_y) label position
+    """
+    # Calculate text bounding box
+    bbox = _get_text_bbox(text, label_x, label_y, font)
+    
+    # Try different positions: above, below, left, right, and diagonals
+    offsets = [
+        (0, -radius_pixels - font_size - 10),  # Above (original)
+        (0, radius_pixels + font_size + 10),   # Below
+        (-radius_pixels - len(text) * font_size / 2 - 10, 0),  # Left
+        (radius_pixels + len(text) * font_size / 2 + 10, 0),  # Right
+        (-radius_pixels - len(text) * font_size / 2 - 10, -radius_pixels - font_size - 10),  # Top-left
+        (radius_pixels + len(text) * font_size / 2 + 10, -radius_pixels - font_size - 10),  # Top-right
+        (-radius_pixels - len(text) * font_size / 2 - 10, radius_pixels + font_size + 10),  # Bottom-left
+        (radius_pixels + len(text) * font_size / 2 + 10, radius_pixels + font_size + 10),  # Bottom-right
+    ]
+    
+    # Try each position
+    for offset_x, offset_y in offsets:
+        test_x = object_x + offset_x
+        test_y = object_y + offset_y
+        
+        # Ensure within bounds
+        if test_x < 0 or test_x > width or test_y < 0 or test_y > height:
+            continue
+        
+        # Check overlap with existing labels
+        test_bbox = _get_text_bbox(text, test_x, test_y, font)
+        overlaps = False
+        for existing_bbox in existing_labels:
+            if _bboxes_overlap(test_bbox, existing_bbox):
+                overlaps = True
+                break
+        
+        if not overlaps:
+            return (test_x, test_y)
+    
+    # If all positions overlap, return original position
+    return (label_x, label_y)
+
+
 def _draw_object(draw: ImageDraw.ImageDraw, x: float, y: float, obj: CelestialObject, 
-                obj_type: str, width: int, height: int, wcs: WCS, font: ImageFont.FreeTypeFont | ImageFont.ImageFont) -> None:
+                obj_type: str, width: int, height: int, wcs: WCS, font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+                label_x: float | None = None, label_y: float | None = None) -> None:
     """Draw a celestial object on the image.
     
     Args:
@@ -425,20 +535,22 @@ def _draw_object(draw: ImageDraw.ImageDraw, x: float, y: float, obj: CelestialOb
             for k in range(len(points) - 1):
                 draw.line([points[k], points[k+1]], fill=color, width=max(1, base_thickness))
     
-    # Draw label
+    # Draw label (use provided position if available, otherwise calculate default)
     try:
-        # Position label above the object
-        label_offset = radius_pixels + font_size + 5
-        label_y = y - label_offset
-        # Ensure label is within bounds
-        if label_y < 0:
-            label_y = y + label_offset
+        if label_x is None or label_y is None:
+            # Position label above the object (default)
+            label_offset = radius_pixels + font_size + 5
+            label_y = y - label_offset
+            # Ensure label is within bounds
+            if label_y < 0:
+                label_y = y + label_offset
+            label_x = x
         
         # Draw text with shadow for readability (larger shadow offset for bigger font)
         text_shadow_offset = max(2, int(3 * scale_factor))
-        draw.text((x + text_shadow_offset, label_y + text_shadow_offset), obj.name, 
+        draw.text((label_x + text_shadow_offset, label_y + text_shadow_offset), obj.name, 
                  fill=(0, 0, 0), font=font)  # Shadow
-        draw.text((x, label_y), obj.name, fill=color, font=font)
+        draw.text((label_x, label_y), obj.name, fill=color, font=font)
     except Exception:  # noqa: BLE001
         pass  # Skip label if font rendering fails
 
@@ -510,20 +622,66 @@ def _generate_annotation_python(job_id: int, source_path: Path, wcs_path: Path, 
             font = ImageFont.load_default()
             logger.debug("Using default font")
     
-    # Draw selected objects
-    objects_drawn = 0
+    # First pass: calculate all object positions and initial label positions
+    object_positions = []
     for obj in selected:
         try:
             # Convert RA/Dec to pixel coordinates
             pixel = wcs.world_to_pixel_values(obj.ra, obj.dec)
             x, y = float(pixel[0]), float(pixel[1])
             
-            # Only draw if within image bounds
+            # Only process if within image bounds
             if 0 <= x < width and 0 <= y < height:
-                obj_type = _get_object_type(obj.name)
-                _draw_object(draw, x, y, obj, obj_type, width, height, wcs, font)
-                objects_drawn += 1
-                logger.debug("Drew object: %s at (%.1f, %.1f)", obj.name, x, y)
+                # Calculate radius for label positioning
+                from astropy.wcs.utils import proj_plane_pixel_scales
+                scales = proj_plane_pixel_scales(wcs)
+                avg_scale = (abs(scales[0]) + abs(scales[1])) / 2.0
+                
+                if obj.ang_diameter is not None and obj.ang_diameter > 0:
+                    radius_deg = obj.ang_diameter / 60.0 / 2.0
+                    radius_pixels = radius_deg / avg_scale
+                else:
+                    default_radius_deg = 0.1
+                    radius_pixels = default_radius_deg / avg_scale
+                
+                # Initial label position (above object)
+                label_offset = radius_pixels + font_size + 5
+                label_y = y - label_offset
+                if label_y < 0:
+                    label_y = y + label_offset
+                label_x = x
+                
+                object_positions.append((obj, x, y, radius_pixels, label_x, label_y))
+        except Exception as e:  # noqa: BLE001
+            logger.debug("Error processing object %s: %s", obj.name, e)
+            continue
+    
+    # Second pass: adjust label positions to avoid overlap (greedy algorithm)
+    adjusted_labels = []
+    existing_label_bboxes = []
+    
+    for obj, x, y, radius_pixels, initial_label_x, initial_label_y in object_positions:
+        # Adjust label position
+        adjusted_x, adjusted_y = _adjust_label_position(
+            initial_label_x, initial_label_y, obj.name, font,
+            existing_label_bboxes, x, y, radius_pixels, width, height, font_size
+        )
+        
+        # Calculate bounding box for adjusted label
+        label_bbox = _get_text_bbox(obj.name, adjusted_x, adjusted_y, font)
+        existing_label_bboxes.append(label_bbox)
+        
+        adjusted_labels.append((obj, x, y, adjusted_x, adjusted_y))
+    
+    # Third pass: draw objects with adjusted label positions
+    objects_drawn = 0
+    for obj, x, y, label_x, label_y in adjusted_labels:
+        try:
+            obj_type = _get_object_type(obj.name)
+            _draw_object(draw, x, y, obj, obj_type, width, height, wcs, font, label_x, label_y)
+            objects_drawn += 1
+            logger.debug("Drew object: %s at (%.1f, %.1f) with label at (%.1f, %.1f)", 
+                        obj.name, x, y, label_x, label_y)
         except Exception as e:  # noqa: BLE001
             logger.debug("Error drawing object %s: %s", obj.name, e)
             continue
