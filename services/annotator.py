@@ -428,12 +428,16 @@ def _adjust_label_position(label_x: float, label_y: float, text: str, font: Imag
         test_x = object_x + offset_x
         test_y = object_y + offset_y
         
-        # Ensure within bounds
-        if test_x < 0 or test_x > width or test_y < 0 or test_y > height:
+        # Calculate text bounding box for this position
+        test_bbox = _get_text_bbox(text, test_x, test_y, font)
+        left, top, right, bottom = test_bbox
+        
+        # Ensure entire bounding box is within bounds (with small margin)
+        margin = 5
+        if left < margin or right > width - margin or top < margin or bottom > height - margin:
             continue
         
         # Check overlap with existing labels
-        test_bbox = _get_text_bbox(text, test_x, test_y, font)
         overlaps = False
         for existing_bbox in existing_labels:
             if _bboxes_overlap(test_bbox, existing_bbox):
@@ -443,7 +447,33 @@ def _adjust_label_position(label_x: float, label_y: float, text: str, font: Imag
         if not overlaps:
             return (test_x, test_y)
     
-    # If all positions overlap, return original position
+    # If all positions overlap or are out of bounds, try to adjust original position to fit
+    # Clamp the label position to ensure it's within bounds
+    original_bbox = _get_text_bbox(text, label_x, label_y, font)
+    orig_left, orig_top, orig_right, orig_bottom = original_bbox
+    
+    # Adjust if out of bounds
+    adjusted_x = label_x
+    adjusted_y = label_y
+    
+    if orig_left < 0:
+        adjusted_x = label_x - orig_left + 5  # Shift right
+    elif orig_right > width:
+        adjusted_x = label_x - (orig_right - width) - 5  # Shift left
+    
+    if orig_top < 0:
+        adjusted_y = label_y - orig_top + 5  # Shift down
+    elif orig_bottom > height:
+        adjusted_y = label_y - (orig_bottom - height) - 5  # Shift up
+    
+    # Final check: ensure adjusted position's bbox is within bounds
+    final_bbox = _get_text_bbox(text, adjusted_x, adjusted_y, font)
+    final_left, final_top, final_right, final_bottom = final_bbox
+    
+    if final_left >= 0 and final_right <= width and final_top >= 0 and final_bottom <= height:
+        return (adjusted_x, adjusted_y)
+    
+    # Last resort: return original position (may be partially out of bounds)
     return (label_x, label_y)
 
 
