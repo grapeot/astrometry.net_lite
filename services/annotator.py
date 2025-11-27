@@ -330,9 +330,9 @@ def _draw_object(draw: ImageDraw.ImageDraw, x: float, y: float, obj: CelestialOb
     min_dimension = min(width, height)
     scale_factor = min_dimension / 1000.0
     # Thickness: 6x the original (was 1 * scale_factor, now 6 * scale_factor)
-    base_thickness = max(1, int(6 * scale_factor))
-    # Font size: 144x the original (was 12 * scale_factor, now 1728 * scale_factor)
-    font_size = max(10, int(1728 * scale_factor))
+    base_thickness = max(1, int(4 * scale_factor))
+    # Font size: 144x the original
+    font_size = max(10, int(48 * scale_factor))
     
     color = _get_object_color(obj_type)
     
@@ -469,7 +469,8 @@ def _generate_annotation_python(job_id: int, source_path: Path, wcs_path: Path, 
     # Calculate dynamic sizing
     min_dimension = min(width, height)
     scale_factor = min_dimension / 1000.0
-    font_size = max(10, int(12 * scale_factor))
+    # Font size: 4x the original (was 12 * scale_factor, now 48 * scale_factor)
+    font_size = max(10, int(48 * scale_factor))
     
     # Create drawing context
     draw = ImageDraw.Draw(img)
