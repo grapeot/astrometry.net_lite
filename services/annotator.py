@@ -329,9 +329,10 @@ def _draw_object(draw: ImageDraw.ImageDraw, x: float, y: float, obj: CelestialOb
     # Calculate dynamic sizing
     min_dimension = min(width, height)
     scale_factor = min_dimension / 1000.0
-    # Use thinner outline to avoid looking like filled circles
-    base_thickness = max(1, int(1 * scale_factor))  # Reduced from 2 to 1
-    font_size = max(10, int(12 * scale_factor))
+    # Thickness: 3x the original (was 1 * scale_factor, now 3 * scale_factor)
+    base_thickness = max(1, int(3 * scale_factor))
+    # Font size: 4x the original (was 12 * scale_factor, now 48 * scale_factor)
+    font_size = max(10, int(48 * scale_factor))
     
     color = _get_object_color(obj_type)
     
