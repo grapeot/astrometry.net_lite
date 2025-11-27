@@ -226,10 +226,16 @@ def _plot_bright_stars(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height: 
                         stars_in_bounds += 1
                         # Star size based on magnitude (brighter = larger)
                         # Make stars more visible - larger and brighter
-                        size = max(2, int(8 - star_mag * 0.8))
-                        # Draw star as bright circle with outline
+                        # Scale size based on image dimensions (larger images need larger markers)
+                        base_size = max(3, int((width + height) / 1000))  # Scale with image size
+                        size = max(base_size, int((8 - star_mag) * base_size / 4))
+                        # Draw star as bright circle with crosshair for visibility
                         draw.ellipse([x - size, y - size, x + size, y + size], 
-                                    fill=(255, 255, 0), outline=(255, 200, 0), width=2)
+                                    fill=(255, 255, 0), outline=(255, 0, 0), width=max(2, size//3))
+                        # Add crosshair for better visibility
+                        cross_size = size + 2
+                        draw.line([x - cross_size, y, x + cross_size, y], fill=(255, 0, 0), width=max(1, size//4))
+                        draw.line([x, y - cross_size, x, y + cross_size], fill=(255, 0, 0), width=max(1, size//4))
                         stars_drawn += 1
                         if stars_drawn <= 5:  # Log first few stars
                             logger.debug("Drew star: RA=%.4f Dec=%.4f mag=%.1f -> pixel=(%.1f, %.1f) size=%d", 
@@ -303,10 +309,14 @@ def _plot_ngc_objects(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height: i
                     
                     if 0 <= x < width and 0 <= y < height:
                         ngc_in_bounds += 1
-                        # Draw NGC object as visible square - make it larger and brighter
-                        size = 5
+                        # Draw NGC object as visible square - scale with image size
+                        base_size = max(4, int((width + height) / 1000))
+                        size = base_size + 2
                         draw.rectangle([x - size, y - size, x + size, y + size],
-                                      fill=(0, 150, 255), outline=(0, 100, 200), width=2)
+                                      fill=(0, 200, 255), outline=(255, 0, 0), width=max(2, size//3))
+                        # Add diagonal lines for better visibility
+                        draw.line([x - size, y - size, x + size, y + size], fill=(255, 0, 0), width=max(1, size//4))
+                        draw.line([x - size, y + size, x + size, y - size], fill=(255, 0, 0), width=max(1, size//4))
                         ngc_drawn += 1
                 except Exception as e:  # noqa: BLE001
                     logger.debug("Error converting NGC RA=%.4f Dec=%.4f: %s", obj_ra, obj_dec, e)
