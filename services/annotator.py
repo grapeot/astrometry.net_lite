@@ -329,10 +329,10 @@ def _draw_object(draw: ImageDraw.ImageDraw, x: float, y: float, obj: CelestialOb
     # Calculate dynamic sizing
     min_dimension = min(width, height)
     scale_factor = min_dimension / 1000.0
-    # Thickness: 3x the original (was 1 * scale_factor, now 3 * scale_factor)
-    base_thickness = max(1, int(3 * scale_factor))
-    # Font size: 4x the original (was 12 * scale_factor, now 48 * scale_factor)
-    font_size = max(10, int(48 * scale_factor))
+    # Thickness: 6x the original (was 1 * scale_factor, now 6 * scale_factor)
+    base_thickness = max(1, int(6 * scale_factor))
+    # Font size: 24x the original (was 12 * scale_factor, now 288 * scale_factor)
+    font_size = max(10, int(288 * scale_factor))
     
     color = _get_object_color(obj_type)
     
@@ -341,13 +341,23 @@ def _draw_object(draw: ImageDraw.ImageDraw, x: float, y: float, obj: CelestialOb
     scales = proj_plane_pixel_scales(wcs)
     avg_scale = (abs(scales[0]) + abs(scales[1])) / 2.0
     
+    # Calculate shadow offset for drop shadow effect
+    shadow_offset_x = max(2, int(4 * scale_factor))
+    shadow_offset_y = max(2, int(4 * scale_factor))
+    
     if obj.ang_diameter is not None and obj.ang_diameter > 0:
         # Has radius: draw circle with solid line
         # Convert arcmin to degrees, then to pixels
         radius_deg = obj.ang_diameter / 60.0 / 2.0
         radius_pixels = radius_deg / avg_scale
         
-        # Draw main circle with solid outline only (no fill to avoid covering the image)
+        # Draw drop shadow first (behind the main circle)
+        shadow_bbox = [x - radius_pixels + shadow_offset_x, y - radius_pixels + shadow_offset_y,
+                      x + radius_pixels + shadow_offset_x, y + radius_pixels + shadow_offset_y]
+        shadow_color = (30, 30, 30)  # Dark shadow
+        draw.ellipse(shadow_bbox, outline=shadow_color, fill=None, width=base_thickness)
+        
+        # Draw main circle with solid outline (no fill to avoid covering the image)
         bbox = [x - radius_pixels, y - radius_pixels, x + radius_pixels, y + radius_pixels]
         # Explicitly set fill=None to ensure no fill
         draw.ellipse(bbox, outline=color, fill=None, width=base_thickness)
@@ -357,10 +367,26 @@ def _draw_object(draw: ImageDraw.ImageDraw, x: float, y: float, obj: CelestialOb
         default_radius_deg = 0.1
         radius_pixels = default_radius_deg / avg_scale
         
-        # Draw dashed circle
-        bbox = [x - radius_pixels, y - radius_pixels, x + radius_pixels, y + radius_pixels]
+        # Draw drop shadow first (behind the dashed circle)
+        shadow_color = (30, 30, 30)  # Dark shadow
         num_segments = 24
         dash_length = 360 / num_segments
+        # Draw shadow as dashed circle
+        for i in range(0, num_segments, 2):
+            start_angle = i * dash_length
+            end_angle = (i + 1) * dash_length
+            num_points = 8
+            points = []
+            for j in range(num_points):
+                angle = math.radians(start_angle + (end_angle - start_angle) * j / (num_points - 1))
+                px = x + radius_pixels * math.cos(angle) + shadow_offset_x
+                py = y + radius_pixels * math.sin(angle) + shadow_offset_y
+                points.append((px, py))
+            for k in range(len(points) - 1):
+                draw.line([points[k], points[k+1]], fill=shadow_color, width=max(1, base_thickness))
+        
+        # Draw dashed circle on top
+        bbox = [x - radius_pixels, y - radius_pixels, x + radius_pixels, y + radius_pixels]
         for i in range(0, num_segments, 2):
             start_angle = i * dash_length
             end_angle = (i + 1) * dash_length
@@ -383,8 +409,8 @@ def _draw_object(draw: ImageDraw.ImageDraw, x: float, y: float, obj: CelestialOb
         if label_y < 0:
             label_y = y + label_offset
         
-        # Draw text with shadow for readability
-        text_shadow_offset = max(1, int(1 * scale_factor))
+        # Draw text with shadow for readability (larger shadow offset for bigger font)
+        text_shadow_offset = max(2, int(3 * scale_factor))
         draw.text((x + text_shadow_offset, label_y + text_shadow_offset), obj.name, 
                  fill=(0, 0, 0), font=font)  # Shadow
         draw.text((x, label_y), obj.name, fill=color, font=font)
