@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 # Add net directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "net"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "net"))
 
 from client.client import Client
 
@@ -108,7 +108,7 @@ def main():
     
     if not image_path:
         print("❌ No test image found. Please provide an image path.")
-        print("   Usage: python scripts/test_upload_with_client.py <image_path>")
+        print("   Usage: python tests/integration/test_upload_with_client.py <image_path>")
         if len(sys.argv) > 1:
             image_path = sys.argv[1]
         else:

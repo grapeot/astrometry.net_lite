@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from services import annotator
 from services.storage import prepare_job_dir
@@ -130,9 +130,9 @@ def main():
         parser.print_help()
         print("\nExamples:")
         print("  # Test with existing job 6:")
-        print("  python scripts/test_annotator.py --job-id 6")
+        print("  python tests/integration/test_annotator.py --job-id 6")
         print("\n  # Test with custom files:")
-        print("  python scripts/test_annotator.py --source test.jpg --wcs data/jobs/6/wcs.fits --radius 0.5")
+        print("  python tests/integration/test_annotator.py --source test.jpg --wcs data/jobs/6/wcs.fits --radius 0.5")
 
 
 if __name__ == "__main__":
