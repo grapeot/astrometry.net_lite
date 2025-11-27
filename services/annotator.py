@@ -455,57 +455,21 @@ def _plot_abell_clusters(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height
 
 
 async def generate_annotation(job_id: int, source_path: Path, wcs_path: Path, radius: float, scale: float = 1.0) -> Path:
-    """Generate annotated image, trying plotann.py first, then falling back to Python implementation."""
+    """Generate annotated image using Python implementation.
+    
+    Note: plotann.py is skipped due to Python version compatibility issues.
+    We use our own Python implementation which follows the same catalog selection logic.
+    """
     logger.info("Starting annotation generation for job %s", job_id)
     logger.info("Parameters - source: %s, wcs: %s, radius: %s, scale: %s", source_path, wcs_path, radius, scale)
     
     job_dir = prepare_job_dir(job_id)
-    pnm_path = job_dir / "source.ppm"
-    output_path = job_dir / "annotated.jpg"
     
     logger.info("Job directory: %s", job_dir)
     logger.info("Checking source file: %s exists: %s", source_path, source_path.exists())
     logger.info("Checking WCS file: %s exists: %s", wcs_path, wcs_path.exists())
     
-    # Try plotann.py first
-    try:
-        # Convert source image to PPM
-        logger.info("Converting source image to PPM format")
-        _convert_to_ppm(source_path, pnm_path)
-        logger.info("PPM file created at %s, exists: %s", pnm_path, pnm_path.exists())
-        
-        # Build plotann.py command
-        args = _build_plotann_args(job_dir, wcs_path, pnm_path, output_path, radius, scale)
-        
-        logger.info("Running plotann.py for job %s: %s", job_id, " ".join(args))
-        logger.info("Input files - WCS: %s, PPM: %s, Output: %s", wcs_path, pnm_path, output_path)
-        logger.info("Checking file existence - WCS exists: %s, PPM exists: %s", wcs_path.exists(), pnm_path.exists())
-        
-        proc = await asyncio.create_subprocess_exec(
-            *args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await proc.communicate()
-        
-        stdout_text = stdout.decode("utf-8", errors="ignore")
-        stderr_text = stderr.decode("utf-8", errors="ignore")
-        
-        logger.info("plotann.py for job %s finished with return code: %s", job_id, proc.returncode)
-        if stdout_text:
-            logger.info("plotann.py stdout for job %s: %s", job_id, stdout_text[:500])
-        if stderr_text:
-            logger.info("plotann.py stderr for job %s: %s", job_id, stderr_text[:500])
-        
-        if proc.returncode == 0 and output_path.exists():
-            logger.info("Generated annotated image using plotann.py for job %s at %s", job_id, output_path)
-            return output_path
-        else:
-            logger.warning("plotann.py failed or output not found for job %s, trying Python implementation", job_id)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Error running plotann.py for job %s: %s, trying Python implementation", job_id, exc)
-    
-    # Fallback to Python implementation
+    # Use Python implementation directly (plotann.py has Python version compatibility issues)
     try:
         return _generate_annotation_python(job_id, source_path, wcs_path, radius, scale)
     except Exception as exc:  # noqa: BLE001
