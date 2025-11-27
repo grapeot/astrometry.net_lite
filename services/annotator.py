@@ -339,50 +339,74 @@ def _draw_object(draw: ImageDraw.ImageDraw, x: float, y: float, obj: CelestialOb
     scales = proj_plane_pixel_scales(wcs)
     avg_scale = (abs(scales[0]) + abs(scales[1])) / 2.0
     
+    # Calculate shadow offset (down and right for depth effect)
+    shadow_offset_x = max(2, int(3 * scale_factor))
+    shadow_offset_y = max(2, int(3 * scale_factor))
+    
     if obj.ang_diameter is not None and obj.ang_diameter > 0:
         # Has radius: draw circle with solid line
         # Convert arcmin to degrees, then to pixels
         radius_deg = obj.ang_diameter / 60.0 / 2.0
         radius_pixels = radius_deg / avg_scale
         
-        # Draw circle with solid outline (no shadow for objects with radius)
+        # Draw shadow first (behind the main circle) - multiple layers for soft shadow
+        shadow_color = (20, 20, 20)  # Dark shadow
+        for blur in range(3):
+            blur_offset = blur * 1
+            shadow_bbox = [x - radius_pixels + shadow_offset_x + blur_offset, 
+                          y - radius_pixels + shadow_offset_y + blur_offset,
+                          x + radius_pixels + shadow_offset_x - blur_offset, 
+                          y + radius_pixels + shadow_offset_y - blur_offset]
+            # Draw shadow with decreasing opacity (simulated by lighter color)
+            shadow_intensity = max(10, 30 - blur * 5)
+            shadow_col = (shadow_intensity, shadow_intensity, shadow_intensity)
+            draw.ellipse(shadow_bbox, outline=shadow_col, width=max(1, base_thickness + blur))
+        
+        # Draw main circle with solid outline
         bbox = [x - radius_pixels, y - radius_pixels, x + radius_pixels, y + radius_pixels]
         draw.ellipse(bbox, outline=color, width=base_thickness)
         
-        # Add subtle fill with transparency effect (draw multiple circles with decreasing opacity)
+        # Add subtle fill with transparency effect
         for i in range(2):
             alpha_factor = 0.15 - i * 0.05
             if alpha_factor > 0:
                 fill_color = tuple(int(c * alpha_factor) for c in color)
-                # Draw slightly smaller circles for gradient effect
                 shrink = i * 2
                 fill_bbox = [x - radius_pixels + shrink, y - radius_pixels + shrink,
                            x + radius_pixels - shrink, y + radius_pixels - shrink]
                 draw.ellipse(fill_bbox, fill=fill_color)
     else:
-        # No radius: draw with dashed line and subtle shadow
+        # No radius: draw with dashed line and shadow
         # Use a default radius (e.g., 0.1 degrees)
         default_radius_deg = 0.1
         radius_pixels = default_radius_deg / avg_scale
         
-        # Draw subtle shadow first (behind the dashed circle)
-        shadow_offset = max(1, int(1 * scale_factor))  # Smaller offset
-        shadow_bbox = [x - radius_pixels + shadow_offset, y - radius_pixels + shadow_offset,
-                      x + radius_pixels + shadow_offset, y + radius_pixels + shadow_offset]
-        # Use a semi-transparent dark shadow, not solid black
-        shadow_color = (40, 40, 40)  # Lighter shadow
-        # Draw shadow as a thin outline, not filled
-        draw.ellipse(shadow_bbox, outline=shadow_color, width=max(1, base_thickness - 1))
-        
-        # Draw dashed circle on top (approximate by drawing arcs)
-        bbox = [x - radius_pixels, y - radius_pixels, x + radius_pixels, y + radius_pixels]
-        # Draw dashed effect by drawing multiple arcs
-        num_segments = 24  # More segments for smoother dashed line
+        # Draw shadow first (behind the dashed circle)
+        num_segments = 24
         dash_length = 360 / num_segments
-        for i in range(0, num_segments, 2):  # Draw every other segment
+        # Draw shadow as dashed circle
+        for blur in range(2):
+            blur_offset = blur * 1
+            for i in range(0, num_segments, 2):
+                start_angle = i * dash_length
+                end_angle = (i + 1) * dash_length
+                num_points = 8
+                points = []
+                for j in range(num_points):
+                    angle = math.radians(start_angle + (end_angle - start_angle) * j / (num_points - 1))
+                    px = x + radius_pixels * math.cos(angle) + shadow_offset_x + blur_offset
+                    py = y + radius_pixels * math.sin(angle) + shadow_offset_y + blur_offset
+                    points.append((px, py))
+                shadow_intensity = max(15, 30 - blur * 5)
+                shadow_col = (shadow_intensity, shadow_intensity, shadow_intensity)
+                for k in range(len(points) - 1):
+                    draw.line([points[k], points[k+1]], fill=shadow_col, width=max(1, base_thickness + blur))
+        
+        # Draw dashed circle on top
+        bbox = [x - radius_pixels, y - radius_pixels, x + radius_pixels, y + radius_pixels]
+        for i in range(0, num_segments, 2):
             start_angle = i * dash_length
             end_angle = (i + 1) * dash_length
-            # Draw arc using multiple points
             num_points = 8
             points = []
             for j in range(num_points):
@@ -390,7 +414,6 @@ def _draw_object(draw: ImageDraw.ImageDraw, x: float, y: float, obj: CelestialOb
                 px = x + radius_pixels * math.cos(angle)
                 py = y + radius_pixels * math.sin(angle)
                 points.append((px, py))
-            # Draw lines connecting points
             for k in range(len(points) - 1):
                 draw.line([points[k], points[k+1]], fill=color, width=max(1, base_thickness))
     
