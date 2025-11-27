@@ -345,13 +345,13 @@ def _draw_object(draw: ImageDraw.ImageDraw, x: float, y: float, obj: CelestialOb
         radius_deg = obj.ang_diameter / 60.0 / 2.0
         radius_pixels = radius_deg / avg_scale
         
-        # Draw circle with solid outline
+        # Draw circle with solid outline (no shadow for objects with radius)
         bbox = [x - radius_pixels, y - radius_pixels, x + radius_pixels, y + radius_pixels]
         draw.ellipse(bbox, outline=color, width=base_thickness)
         
         # Add subtle fill with transparency effect (draw multiple circles with decreasing opacity)
         for i in range(2):
-            alpha_factor = 0.2 - i * 0.1
+            alpha_factor = 0.15 - i * 0.05
             if alpha_factor > 0:
                 fill_color = tuple(int(c * alpha_factor) for c in color)
                 # Draw slightly smaller circles for gradient effect
@@ -360,28 +360,30 @@ def _draw_object(draw: ImageDraw.ImageDraw, x: float, y: float, obj: CelestialOb
                            x + radius_pixels - shrink, y + radius_pixels - shrink]
                 draw.ellipse(fill_bbox, fill=fill_color)
     else:
-        # No radius: draw with dashed line and shadow
+        # No radius: draw with dashed line and subtle shadow
         # Use a default radius (e.g., 0.1 degrees)
         default_radius_deg = 0.1
         radius_pixels = default_radius_deg / avg_scale
         
-        # Draw shadow (offset slightly)
-        shadow_offset = max(1, int(2 * scale_factor))
+        # Draw subtle shadow first (behind the dashed circle)
+        shadow_offset = max(1, int(1 * scale_factor))  # Smaller offset
         shadow_bbox = [x - radius_pixels + shadow_offset, y - radius_pixels + shadow_offset,
                       x + radius_pixels + shadow_offset, y + radius_pixels + shadow_offset]
-        shadow_color = (20, 20, 20)  # Dark shadow
-        draw.ellipse(shadow_bbox, outline=shadow_color, width=base_thickness)
+        # Use a semi-transparent dark shadow, not solid black
+        shadow_color = (40, 40, 40)  # Lighter shadow
+        # Draw shadow as a thin outline, not filled
+        draw.ellipse(shadow_bbox, outline=shadow_color, width=max(1, base_thickness - 1))
         
-        # Draw dashed circle (approximate by drawing arcs)
+        # Draw dashed circle on top (approximate by drawing arcs)
         bbox = [x - radius_pixels, y - radius_pixels, x + radius_pixels, y + radius_pixels]
         # Draw dashed effect by drawing multiple arcs
-        num_segments = 20
+        num_segments = 24  # More segments for smoother dashed line
         dash_length = 360 / num_segments
         for i in range(0, num_segments, 2):  # Draw every other segment
             start_angle = i * dash_length
             end_angle = (i + 1) * dash_length
             # Draw arc using multiple points
-            num_points = 10
+            num_points = 8
             points = []
             for j in range(num_points):
                 angle = math.radians(start_angle + (end_angle - start_angle) * j / (num_points - 1))
@@ -390,7 +392,7 @@ def _draw_object(draw: ImageDraw.ImageDraw, x: float, y: float, obj: CelestialOb
                 points.append((px, py))
             # Draw lines connecting points
             for k in range(len(points) - 1):
-                draw.line([points[k], points[k+1]], fill=color, width=max(1, base_thickness - 1))
+                draw.line([points[k], points[k+1]], fill=color, width=max(1, base_thickness))
     
     # Draw label
     try:
