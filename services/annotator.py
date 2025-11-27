@@ -329,7 +329,8 @@ def _draw_object(draw: ImageDraw.ImageDraw, x: float, y: float, obj: CelestialOb
     # Calculate dynamic sizing
     min_dimension = min(width, height)
     scale_factor = min_dimension / 1000.0
-    base_thickness = max(1, int(2 * scale_factor))
+    # Use thinner outline to avoid looking like filled circles
+    base_thickness = max(1, int(1 * scale_factor))  # Reduced from 2 to 1
     font_size = max(10, int(12 * scale_factor))
     
     color = _get_object_color(obj_type)
@@ -345,19 +346,10 @@ def _draw_object(draw: ImageDraw.ImageDraw, x: float, y: float, obj: CelestialOb
         radius_deg = obj.ang_diameter / 60.0 / 2.0
         radius_pixels = radius_deg / avg_scale
         
-        # Draw main circle with solid outline
+        # Draw main circle with solid outline only (no fill to avoid covering the image)
         bbox = [x - radius_pixels, y - radius_pixels, x + radius_pixels, y + radius_pixels]
-        draw.ellipse(bbox, outline=color, width=base_thickness)
-        
-        # Add subtle fill with transparency effect
-        for i in range(2):
-            alpha_factor = 0.15 - i * 0.05
-            if alpha_factor > 0:
-                fill_color = tuple(int(c * alpha_factor) for c in color)
-                shrink = i * 2
-                fill_bbox = [x - radius_pixels + shrink, y - radius_pixels + shrink,
-                           x + radius_pixels - shrink, y + radius_pixels - shrink]
-                draw.ellipse(fill_bbox, fill=fill_color)
+        # Explicitly set fill=None to ensure no fill
+        draw.ellipse(bbox, outline=color, fill=None, width=base_thickness)
     else:
         # No radius: draw with dashed line
         # Use a default radius (e.g., 0.1 degrees)
