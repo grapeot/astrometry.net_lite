@@ -15,13 +15,14 @@ export function useJobList(initialLimit: number = 20) {
     setError(null);
     try {
       const data: JobListResponse = await fetchJobList(pageNum, limit);
+      const jobList = data.jobs ?? [];
       if (append) {
-        setJobs(prev => [...prev, ...data.jobs]);
+        setJobs(prev => [...prev, ...jobList]);
       } else {
-        setJobs(data.jobs);
+        setJobs(jobList);
       }
-      setTotal(data.pagination.total);
-      setHasNext(data.pagination.has_next);
+      setTotal(data.pagination?.total ?? 0);
+      setHasNext(data.pagination?.has_next ?? false);
       setPage(pageNum);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load jobs');

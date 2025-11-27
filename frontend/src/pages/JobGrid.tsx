@@ -20,12 +20,12 @@ export function JobGrid() {
       {error && <div className="error-message">{error}</div>}
 
       <div className="job-grid">
-        {jobs.map(job => (
+        {jobs?.map(job => (
           <JobCard key={job.job_id} job={job} />
         ))}
       </div>
 
-      {jobs.length === 0 && !loading && (
+      {(!jobs || jobs.length === 0) && !loading && (
         <div className="empty-state">No jobs yet</div>
       )}
 

@@ -26,8 +26,8 @@ app.add_middleware(
 )
 
 app.include_router(admin.router, prefix="/api")
+app.include_router(frontend.router)  # Frontend API routes - must be before legacy to avoid /jobs/{job_id} capturing /jobs/list
 app.include_router(legacy.router, prefix="/api")
-app.include_router(frontend.router)  # Frontend API routes (already has /api prefix)
 app.include_router(file_router)  # File download routes without /api prefix
 
 
