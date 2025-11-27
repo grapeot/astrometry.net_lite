@@ -95,6 +95,21 @@ def _generate_annotation_python(job_id: int, source_path: Path, wcs_path: Path, 
     width, height = img.size
     logger.info("Source image size: %dx%d pixels", width, height)
     
+    # Calculate scaling factors based on image size
+    # Base everything on the smaller dimension to ensure visibility
+    min_dimension = min(width, height)
+    scale_factor = min_dimension / 1000.0  # Normalize to 1000px base
+    
+    # Dynamic sizing based on image dimensions
+    star_base_size = max(2, int(3 * scale_factor))
+    star_outline_width = max(1, int(2 * scale_factor))
+    ngc_base_size = max(3, int(4 * scale_factor))
+    ngc_outline_width = max(1, int(2 * scale_factor))
+    font_size = max(10, int(12 * scale_factor))
+    
+    logger.info("Annotation scaling: base_size=%.1f, star_size=%d, ngc_size=%d, font_size=%d",
+               scale_factor, star_base_size, ngc_base_size, font_size)
+    
     # Load WCS and recalculate radius from actual image dimensions
     with fits.open(wcs_path) as hdul:
         header = hdul[0].header
@@ -116,26 +131,38 @@ def _generate_annotation_python(job_id: int, source_path: Path, wcs_path: Path, 
     # Create drawing context
     draw = ImageDraw.Draw(img)
     
+    # Try to load a font (fallback to default if not available)
+    try:
+        # Try to use a larger font if available
+        font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", font_size)
+    except Exception:  # noqa: BLE001
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size)
+        except Exception:  # noqa: BLE001
+            # Fallback to default font (will be small, but better than nothing)
+            font = ImageFont.load_default()
+            logger.debug("Using default font (size may not scale properly)")
+    
     cat_dir = settings.catalogs_dir
     
     # Plot bright stars (unless radius > 30.0, matching plotann.py logic)
     if radius <= 30.0:
         try:
-            _plot_bright_stars(draw, wcs, width, height, radius, cat_dir)
+            _plot_bright_stars(draw, wcs, width, height, radius, cat_dir, star_base_size, star_outline_width)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Failed to plot bright stars for job %s: %s", job_id, exc)
     
     # Plot NGC/IC objects (only if radius < 10.0, matching plotann.py logic)
     if radius < 10.0:
         try:
-            _plot_ngc_objects(draw, wcs, width, height, radius, cat_dir)
+            _plot_ngc_objects(draw, wcs, width, height, radius, cat_dir, ngc_base_size, ngc_outline_width)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Failed to plot NGC objects for job %s: %s", job_id, exc)
     
     # Plot Abell clusters (only if radius < 1.0, matching plotann.py logic)
     if radius < 1.0:
         try:
-            _plot_abell_clusters(draw, wcs, width, height, radius, cat_dir)
+            _plot_abell_clusters(draw, wcs, width, height, radius, cat_dir, star_base_size, star_outline_width)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Failed to plot Abell clusters for job %s: %s", job_id, exc)
     
@@ -148,7 +175,7 @@ def _generate_annotation_python(job_id: int, source_path: Path, wcs_path: Path, 
     return output_path
 
 
-def _plot_bright_stars(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height: int, radius: float, cat_dir: Path) -> None:
+def _plot_bright_stars(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height: int, radius: float, cat_dir: Path, base_size: int = 3, outline_width: int = 1) -> None:
     """Plot bright stars from brightstars.fits catalog."""
     bright_fn = cat_dir / "brightstars.fits"
     if not bright_fn.exists():
@@ -225,17 +252,19 @@ def _plot_bright_stars(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height: 
                     if 0 <= x < width and 0 <= y < height:
                         stars_in_bounds += 1
                         # Star size based on magnitude (brighter = larger)
-                        # Make stars more visible - larger and brighter
-                        # Scale size based on image dimensions (larger images need larger markers)
-                        base_size = max(3, int((width + height) / 1000))  # Scale with image size
-                        size = max(base_size, int((8 - star_mag) * base_size / 4))
+                        # Use dynamic sizing based on image dimensions
+                        mag_factor = max(0.5, (8 - star_mag) / 4.0)  # Scale by magnitude
+                        size = max(base_size, int(base_size * mag_factor * 1.5))
+                        outline_w = max(1, outline_width)
+                        
                         # Draw star as bright circle with crosshair for visibility
                         draw.ellipse([x - size, y - size, x + size, y + size], 
-                                    fill=(255, 255, 0), outline=(255, 0, 0), width=max(2, size//3))
+                                    fill=(255, 255, 0), outline=(255, 0, 0), width=outline_w)
                         # Add crosshair for better visibility
-                        cross_size = size + 2
-                        draw.line([x - cross_size, y, x + cross_size, y], fill=(255, 0, 0), width=max(1, size//4))
-                        draw.line([x, y - cross_size, x, y + cross_size], fill=(255, 0, 0), width=max(1, size//4))
+                        cross_size = int(size * 1.5)
+                        cross_width = max(1, outline_w)
+                        draw.line([x - cross_size, y, x + cross_size, y], fill=(255, 0, 0), width=cross_width)
+                        draw.line([x, y - cross_size, x, y + cross_size], fill=(255, 0, 0), width=cross_width)
                         stars_drawn += 1
                         if stars_drawn <= 5:  # Log first few stars
                             logger.debug("Drew star: RA=%.4f Dec=%.4f mag=%.1f -> pixel=(%.1f, %.1f) size=%d", 
@@ -250,7 +279,7 @@ def _plot_bright_stars(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height: 
         logger.warning("Error reading bright stars catalog: %s", exc)
 
 
-def _plot_ngc_objects(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height: int, radius: float, cat_dir: Path) -> None:
+def _plot_ngc_objects(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height: int, radius: float, cat_dir: Path, base_size: int = 4, outline_width: int = 1) -> None:
     """Plot NGC/IC objects from openngc catalogs (matching plotann.py logic for radius < 10.0)."""
     ngc_fn = cat_dir / "openngc-ngc.fits"
     ic_fn = cat_dir / "openngc-ic.fits"
@@ -309,14 +338,15 @@ def _plot_ngc_objects(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height: i
                     
                     if 0 <= x < width and 0 <= y < height:
                         ngc_in_bounds += 1
-                        # Draw NGC object as visible square - scale with image size
-                        base_size = max(4, int((width + height) / 1000))
+                        # Draw NGC object as visible square - use dynamic sizing
                         size = base_size + 2
+                        outline_w = max(1, outline_width)
                         draw.rectangle([x - size, y - size, x + size, y + size],
-                                      fill=(0, 200, 255), outline=(255, 0, 0), width=max(2, size//3))
+                                      fill=(0, 200, 255), outline=(255, 0, 0), width=outline_w)
                         # Add diagonal lines for better visibility
-                        draw.line([x - size, y - size, x + size, y + size], fill=(255, 0, 0), width=max(1, size//4))
-                        draw.line([x - size, y + size, x + size, y - size], fill=(255, 0, 0), width=max(1, size//4))
+                        line_width = max(1, outline_w)
+                        draw.line([x - size, y - size, x + size, y + size], fill=(255, 0, 0), width=line_width)
+                        draw.line([x - size, y + size, x + size, y - size], fill=(255, 0, 0), width=line_width)
                         ngc_drawn += 1
                 except Exception as e:  # noqa: BLE001
                     logger.debug("Error converting NGC RA=%.4f Dec=%.4f: %s", obj_ra, obj_dec, e)
@@ -368,7 +398,7 @@ def _plot_ngc_objects(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height: i
         logger.warning("Error reading NGC/IC catalogs: %s", exc)
 
 
-def _plot_abell_clusters(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height: int, radius: float, cat_dir: Path) -> None:
+def _plot_abell_clusters(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height: int, radius: float, cat_dir: Path, base_size: int = 2, outline_width: int = 1) -> None:
     """Plot Abell galaxy clusters (matching plotann.py logic for radius < 1.0)."""
     abell_fn = cat_dir / "abell-all.fits"
     if not abell_fn.exists():
@@ -413,10 +443,11 @@ def _plot_abell_clusters(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height
                     x, y = float(pixel[0]), float(pixel[1])
                     
                     if 0 <= x < width and 0 <= y < height:
-                        # Draw Abell cluster as small circle
-                        size = 2
+                        # Draw Abell cluster as circle - use dynamic sizing
+                        size = max(2, int(base_size * 0.8))
+                        outline_w = max(1, outline_width)
                         draw.ellipse([x - size, y - size, x + size, y + size],
-                                    fill=(255, 200, 100), outline=(255, 150, 50))
+                                    fill=(255, 200, 100), outline=(255, 150, 50), width=outline_w)
                 except Exception:  # noqa: BLE001
                     continue
     except Exception as exc:  # noqa: BLE001
