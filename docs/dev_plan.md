@@ -1,6 +1,6 @@
 # Astrometry.net 简化版重构计划（工作稿）
 
-_最后更新：2025-11-07_
+_最后更新：2025-11-26_
 
 ## 背景
 - 代码参考范围：只需保留 `net/` 目录（API 语义、模型、求解脚本）以及 `test_installation.py`（验证 brew 版 CLI 是否可用）；其余子目录可忽略。
@@ -98,27 +98,89 @@ project/
 5. 前端：调用 API 获取 Mongo 状态，与 CLI 输出文件联动刷新 UI。
 
 ## API 兼容范围（基于 `net/client/client.py`）
-- Auth & submissions：`/api/login`, `/api/upload`, `/api/url_upload`, `/api/submissions/<id>`, `/api/submissions/<id>/jobs`, `/api/submission_images`。
-- Job lifecycle：`/api/jobs/<id>`, `/api/jobs/<id>/calibration`, `/api/jobs/<id>/tags`, `/api/jobs/<id>/machine_tags`, `/api/jobs/<id>/objects_in_field`, `/api/jobs/<id>/annotations`, `/api/jobs/<id>/info`, `/api/myjobs/`, `/api/jobs_by_tag`。
-- Visualization：`/api/sdss_image_for_wcs`, `/api/galex_image_for_wcs`, `/api/jobs/<id>/annotations`（JSON）以及新增 `/annotated_display/<jobid>` （PNG/JPEG 下载）。
-- 文件制品：`/wcs_file/<jobid>`, `/kml_file/<jobid>/`, `/new_fits_file/<jobid>/`, `/corr_file/<jobid>` 等公开路由。
 
-> 以上列表将记录在 `docs/working_log.md` 中，随功能落地逐条打勾并注明测试覆盖。
+### ✅ 已实现的 API 端点
+
+**Auth & Submissions：**
+- ✅ `POST /api/login` - API key 认证，返回 session
+- ✅ `POST /api/upload` - 文件上传，支持 multipart/form-data 和 request-json
+- ✅ `POST /api/url_upload` - URL 上传，自动下载后入队
+- ✅ `GET/POST /api/submissions/{id}` - 查询 submission 状态和 jobs 列表
+- ✅ `GET/POST /api/submissions/{id}/jobs` - 获取 submission 的所有 jobs
+- ✅ `POST /api/submission_images` - 返回 image_ids（当前返回空列表）
+
+**Job Lifecycle：**
+- ✅ `GET/POST /api/jobs/{id}` - 查询 job 状态
+- ✅ `GET/POST /api/jobs/{id}/calibration` - 获取校准数据（从 WCS 解析）
+- ✅ `GET/POST /api/jobs/{id}/tags` - 获取标签（当前返回空列表）
+- ✅ `GET/POST /api/jobs/{id}/machine_tags` - 获取机器标签（当前返回空列表）
+- ✅ `GET/POST /api/jobs/{id}/objects_in_field` - 获取视野内天体列表（从 solve-field 日志解析）
+- ✅ `GET/POST /api/jobs/{id}/annotations` - 获取注释 JSON（当前返回空列表）
+- ✅ `GET/POST /api/jobs/{id}/info` - 获取 job 详细信息
+- ✅ `GET/POST /api/myjobs/` - 获取当前 session 的所有 jobs
+- ✅ `GET/POST /api/jobs_by_tag` - 按标签搜索 jobs
+
+**Visualization：**
+- ✅ `POST /api/sdss_image_for_wcs` - 明确标记为"暂不支持"，返回友好错误信息
+- ✅ `POST /api/galex_image_for_wcs` - 明确标记为"暂不支持"，返回友好错误信息
+- ✅ `GET /annotated_display/{jobid}` - 下载标注图像（JPEG，基于 `catalogs.csv`）
+
+**文件制品：**
+- ✅ `GET /wcs_file/{jobid}` - 下载 WCS FITS 文件
+- ✅ `GET /new_fits_file/{jobid}/` - 下载 new FITS 文件
+- ✅ `GET /corr_file/{jobid}` - 下载 corr FITS 文件
+- ✅ `GET /kml_file/{jobid}/` - 下载 KML/KMZ 文件（默认禁用，需安装 `wcs2kml`）
+
+**Admin：**
+- ✅ `GET /api/health` - 健康检查
+
+> 详细实现状态和测试覆盖情况请参考 `docs/working_log.md`
 
 ## 开发里程碑（沿用之前结构，替换到 Mongo）
-1. **M1：FastAPI 骨架 & Mongo 接入**
+1. **M1：FastAPI 骨架 & Mongo 接入** ✅ **已完成**
    - 初始化 FastAPI + motor，封装 `get_mongo_client` 依赖。
    - 定义集合 schema（Pydantic Models + 索引：`api_keys.apikey` 唯一，`jobs.job_id` 唯一等）。
    - 实现 `/api/login`, `/api/upload`, `/api/submissions/<id>`, `/api/jobs/<id>` stub：写入 Mongo，返回 mock 状态。
    - 通过 `tests/integration/test_client_compat.py` 运行旧客户端，确保协议兼容。
-2. **M2：队列 + CLI**（与之前一致，但状态持久化在 Mongo）。
-3. **M3：React UI 原型**（最小界面即可）。
-4. **M4：硬化 & 文档**（包含 `.env.example` 中的 `MONGODB_URI`、索引创建脚本、备份策略）。
+2. **M2：队列 + CLI** ✅ **已完成**
+   - MongoDB-backed 队列实现完成
+   - Worker 进程实现，支持任务领取、执行、状态更新
+   - CLI 调用（solve-field）集成完成
+   - Annotated image 生成：使用自定义 Python 实现（`services/annotator/`），基于 `catalogs.csv`
+3. **M3：兼容 API** ✅ **已完成**
+   - 所有必需 API 端点已实现并测试通过（详见 `docs/working_log.md`）
+   - 文件下载路由（`/wcs_file/`, `/new_fits_file/`, `/corr_file/`, `/annotated_display/`）已实现
+   - SDSS/GALEX overlay 明确标记为"暂不支持"（返回友好错误信息）
+4. **M4：React UI 原型** ✅ **已完成**
+   - 最小界面实现：登录、上传、Job 列表、Job 详情
+5. **M5：测试与文档** ⏳ **进行中**
+   - 集成测试脚本已创建（`scripts/test_service.py`）
+   - 启动指南已创建（`docs/START_GUIDE.md`）
+   - 待完成：单元测试、README 更新、Dockerfile
 
-## 尚需确认/待办
-- `test_installation.py` 只作为遗留参考文件，后续是否完全移除需确认。
-- 为 `astrometry_indexes/` 制定校验/更新策略（目前由本地快照提供，后续需说明如何同步 data.astrometry.net 的增量）。
-- Annotated image 的下载 API 需要明确文件格式 & 命名策略，保证与旧客户端/前端兼容。
+## 当前实现状态
+
+### ✅ 已完成功能
+1. **后端架构**：FastAPI + MongoDB + Motor（async）
+2. **队列系统**：MongoDB-backed 队列，支持任务持久化和恢复
+3. **Worker 进程**：异步执行 solve-field CLI，解析输出，更新状态
+4. **Annotated Image**：自定义 Python 实现（`services/annotator/` 模块化结构）
+   - 使用 `catalogs.csv` 作为唯一数据源
+   - 支持动态 FOV 过滤、去重、优先级排序
+   - 标签布局优化（避免重叠、边界检查）
+   - 动态调整字体大小和线条粗细
+5. **API 兼容性**：所有必需 API 端点已实现，与原始客户端兼容
+6. **前端界面**：React + TypeScript，最小可用界面
+
+### ⏳ 待完成/待优化
+- 单元测试覆盖（当前仅有集成测试脚本）
+- README 文档更新
+- Dockerfile 和部署文档
+- `astrometry_indexes/` 的校验/更新策略文档
+
+### 📝 技术决策更新
+- **Annotated Image 实现**：已从 FITS 目录切换到 `catalogs.csv`，不再依赖 `abell-all.fits`、`brightstars.fits`、`openngc-*.fits` 等文件
+- **代码结构**：`services/annotator.py` 已重构为模块化结构（`catalog.py`、`label_layout.py`、`renderer.py`、`__init__.py`）
 
 ## 新人交付指南
 1. 准备 Mongo 实例：
