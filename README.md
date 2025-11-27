@@ -9,11 +9,15 @@ FastAPI + MongoDB rewrite of the legacy astrometry.net web service. The goal is 
 - Pre-downloaded index files under `./astrometry_indexes/` (already checked into your workspace but ignored by git).
 
 ## Quickstart
+
+### Initial Setup
+
 1. Ensure the uv-managed virtualenv exists and is activated:
    ```bash
    source venv/bin/activate
    ```
-2. Install backend deps (recorded in `pyproject.toml`):
+
+2. Install backend dependencies (recorded in `pyproject.toml`):
    ```bash
    uv pip install -r <(python - <<'PY'
 from pathlib import Path
@@ -25,26 +29,40 @@ PY
 )
    ```
    > Already installed in this repo snapshot.
-3. Copy `.env.example` → `.env` (already prepared) or edit `.env` with Mongo URI, CLI paths, and directories.
-4. Start MongoDB for dev:
-   ```bash
-   ./scripts/start_mongodb.sh
-   ```
-5. Seed an API key (once per environment):
-   ```bash
-   PYTHONPATH=. python scripts/seed_api_key.py my-secret-key user@example.com
-   ```
-6. Launch the API (reads `.env` for `API_HOST`/`API_PORT`):
-   ```bash
-   ./scripts/start_backend.sh
-   ```
-7. (Optional) Run the worker in another shell to execute queued jobs:
-   ```bash
-   ./scripts/start_worker.sh
-   ```
-   > 日志写入 `logs/worker.log`，PID 记录在 `logs/worker.pid`，若需重启先 `kill $(cat logs/worker.pid)`。
 
-> 典型本地开发会同时运行 4 个进程：MongoDB、后台 API（`start_backend.sh`）、队列 worker（`start_worker.sh`）和前端（`start_frontend.sh`）。
+3. Copy `.env.example` → `.env` (already prepared) or edit `.env` with Mongo URI, CLI paths, and directories.
+
+4. Seed an API key (once per environment):
+   ```bash
+   PYTHONPATH=. python scripts/seed_api_key.py test-key-12345 test@example.com
+   ```
+
+### Running the Services
+
+For local development, you'll typically run 4 processes simultaneously:
+
+**Terminal 1: MongoDB**
+```bash
+./scripts/start_mongodb.sh
+```
+
+**Terminal 2: Backend API**
+```bash
+./scripts/start_backend.sh
+```
+> API runs at http://127.0.0.1:8002 (docs at http://127.0.0.1:8002/docs)
+
+**Terminal 3: Worker (processes queue)**
+```bash
+./scripts/start_worker.sh
+```
+> Logs are written to `logs/worker.log`, PID is recorded in `logs/worker.pid`. To restart, first run `kill $(cat logs/worker.pid)`.
+
+**Terminal 4: Frontend (optional)**
+```bash
+./scripts/start_frontend.sh
+```
+> Frontend runs at http://localhost:5173
 
 ### Frontend
 
@@ -54,15 +72,27 @@ The React dashboard lives in `frontend/` (Vite + TypeScript).
 cd frontend
 npm install    # already done once
 npm run dev    # launches http://localhost:5173
-## 或使用统一脚本（会自动进入 frontend 目录）
+# Or use the unified script (automatically enters frontend directory)
 ../scripts/start_frontend.sh
 ```
 
 Set `VITE_API_BASE` in `frontend/.env.development` if your API runs on a different host.
 
+### Testing the Service
+
+**Quick test (without waiting for job completion):**
+```bash
+python scripts/test_service.py --quick
+```
+
+**Full test (waits for job completion):**
+```bash
+python scripts/test_service.py --file test.jpg --apikey test-key-12345
+```
+
 ### Docker (experimental)
 
-```
+```bash
 docker build -t astrometry-lite .
 docker run --rm -p 8000:8000 --env-file .env \
   -v "$PWD/data:/app/data" \
@@ -70,9 +100,12 @@ docker run --rm -p 8000:8000 --env-file .env \
   astrometry-lite
 ```
 
-> 镜像内需要 astrometry.net CLI，可在 Dockerfile 中添加二进制或挂载宿主路径。
-> 默认**不**生成 KML/KMZ，因为 Homebrew 版没有 `wcs2kml`。如需 KMZ，请手动安装该工具并在执行 CLI 时加上 `--kmz` 参数。
-7. Use the legacy Python client pointing at `http://localhost:8002/api/`.
+> The Docker image requires astrometry.net CLI binaries. You can add them to the Dockerfile or mount host paths.
+> KML/KMZ generation is disabled by default because the Homebrew version doesn't include `wcs2kml`. To enable KMZ, manually install the tool and add `--kmz` parameter when executing the CLI.
+
+### Using the Legacy Python Client
+
+Point the legacy Python client at `http://localhost:8002/api/`.
 
 ## Project Layout
 ```
