@@ -149,11 +149,15 @@ async def solve_job(db: AsyncIOMotorDatabase, job_id: int, payload: dict[str, An
     
     # Generate annotated image
     radius = calibration.get("radius", 1.0) if calibration else 1.0
+    logger.info("Starting annotated image generation for job %s with radius %s", job_id, radius)
     try:
         annotated = await annotator.generate_annotation(
             job_id, source_path, job_dir / "wcs.fits", radius
         )
+        logger.info("Annotated image generated successfully for job %s: %s", job_id, annotated)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Failed to generate annotation for job %s: %s", job_id, exc)
+        logger.warning("Failed to generate annotation for job %s: %s", job_id, exc, exc_info=True)
         annotated = annotator.generate_placeholder_annotation(job_id, source_path)
+        logger.info("Using placeholder annotation for job %s: %s", job_id, annotated)
     await job_service.add_artifact(db, job_id, ArtifactType.annotated, str(annotated))
+    logger.info("Annotated image artifact saved for job %s", job_id)
