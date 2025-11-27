@@ -67,24 +67,30 @@ async def login(request: Request, db: AsyncIOMotorDatabase = Depends(get_db)):
 
 @router.post("/upload")
 async def upload(request: Request, db: AsyncIOMotorDatabase = Depends(get_db)):
-    payload, files = await _parse_request_payload(request)
-    apikey = payload.get("apikey") or payload.get("session")
-    if not apikey:
-        return _legacy_error("need session")
-    if not await submission_service.validate_api_key(db, apikey):
-        return _legacy_error("bad apikey")
-    upload_file = files.get("file")
-    if upload_file is None:
-        return _legacy_error("missing file")
-    raw = await upload_file.read()
-    result = await submission_service.create_submission(
-        db,
-        api_key=apikey,
-        filename=upload_file.filename or "upload",
-        data=raw,
-        upload_args=payload,
-    )
-    return result
+    try:
+        payload, files = await _parse_request_payload(request)
+        logger.debug("Upload payload keys: %s, files keys: %s", list(payload.keys()), list(files.keys()))
+        apikey = payload.get("apikey") or payload.get("session")
+        if not apikey:
+            return _legacy_error("need session")
+        if not await submission_service.validate_api_key(db, apikey):
+            return _legacy_error("bad apikey")
+        upload_file = files.get("file")
+        if upload_file is None:
+            logger.warning("No file in upload request. Files: %s", list(files.keys()))
+            return _legacy_error("missing file")
+        raw = await upload_file.read()
+        result = await submission_service.create_submission(
+            db,
+            api_key=apikey,
+            filename=upload_file.filename or "upload",
+            data=raw,
+            upload_args=payload,
+        )
+        return result
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Error in upload endpoint: %s", exc, exc_info=True)
+        return _legacy_error(f"upload failed: {str(exc)}")
 
 
 @router.post("/url_upload")
