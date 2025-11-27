@@ -115,3 +115,78 @@ export async function fetchJobObjects(jobId: number): Promise<JobObjectsResponse
     method: 'GET',
   });
 }
+
+// ============================================
+// Frontend API (public, no auth required)
+// ============================================
+
+export interface JobListItem {
+  job_id: number;
+  status: string;
+  created_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  has_annotated_image: boolean;
+  annotated_image_url?: string;
+  original_image_url?: string;
+  stage?: string;
+  message?: string;
+}
+
+export interface JobListResponse {
+  status: string;
+  jobs: JobListItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    has_next: boolean;
+  };
+}
+
+export interface JobDetail {
+  job_id: number;
+  status: string;
+  created_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  failure_reason: string | null;
+  has_annotated_image: boolean;
+  annotated_image_url?: string;
+  original_image_url?: string;
+  original_filename?: string;
+  calibration?: JobCalibrationResponse;
+  objects_in_field?: string[];
+  artifacts?: Record<string, string>;
+  stage?: string;
+  message?: string;
+}
+
+export interface JobDetailResponse {
+  status: string;
+  job: JobDetail;
+}
+
+export interface JobLogResponse {
+  status: string;
+  job_status: string;
+  stage: string | null;
+  message: string | null;
+  log: string;
+  offset: number;
+  is_running: boolean;
+}
+
+export async function fetchJobList(page: number = 1, limit: number = 20, status?: string): Promise<JobListResponse> {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (status) params.set('status', status);
+  return request<JobListResponse>(`/jobs/list?${params}`, { method: 'GET' });
+}
+
+export async function fetchJobDetail(jobId: number): Promise<JobDetailResponse> {
+  return request<JobDetailResponse>(`/jobs/${jobId}/detail`, { method: 'GET' });
+}
+
+export async function fetchJobLog(jobId: number, offset: number = 0): Promise<JobLogResponse> {
+  return request<JobLogResponse>(`/jobs/${jobId}/log?offset=${offset}`, { method: 'GET' });
+}
