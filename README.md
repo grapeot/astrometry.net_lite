@@ -6,7 +6,7 @@ FastAPI + MongoDB rewrite of the legacy astrometry.net web service. The goal is 
 - Python 3.12+
 - MongoDB 7+ (local or Atlas). Dev scripts assume `mongodb://localhost:27017` and the `scripts/start_mongodb.sh` helper.
 - Astrometry.net CLI via Homebrew (`solve-field`, `augment-xylist`, `astrometry-engine`).
-- Pre-downloaded index files under `./astrometry_indexes/` (already checked into your workspace but ignored by git).
+- Pre-downloaded index files under `./astrometry_indexes/`. Download index files from https://data.astrometry.net/ and place them in `./astrometry_indexes/` before running the service.
 
 ## Quickstart
 
@@ -133,16 +133,8 @@ api/            # FastAPI entrypoint + routes
 core/           # Pydantic settings
 services/       # Mongo/data/queue/solver services
 workers/        # CLI worker loop
-frontend/       # React app (pending)
-docs/           # Plans + working log
+frontend/       # React app
+docs/           # Documentation and design notes
 scripts/        # Mongo helpers, etc.
 ```
 
-## Outstanding Work
-See `docs/working_log.md` for a live checklist covering:
-- Mongo-backed queue lifecycle
-- Legacy API coverage & gaps (`sdss_image_for_wcs`, KDE overlays, KML export, annotated PNGs)
-- Frontend implementation milestones
-- Docker packaging and CI/test coverage
-
-Contributions should update the working log plus this README when behaviour changes.
