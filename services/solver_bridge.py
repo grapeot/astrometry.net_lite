@@ -11,6 +11,7 @@ from core.config import settings
 from domain.enums import ArtifactType, JobStatus
 from services import annotator
 from services import jobs as job_service
+from services.state_manager import ProcessingStage, StateManager
 from services.storage import prepare_job_dir
 from services.wcs_utils import extract_calibration, parse_solver_stdout
 
@@ -88,24 +89,46 @@ def _build_cli_args(source_path: Path, job_dir: Path, upload_args: dict[str, Any
 async def solve_job(db: AsyncIOMotorDatabase, job_id: int, payload: dict[str, Any]) -> None:
     source_path = Path(payload["stored_path"])
     job_dir = prepare_job_dir(job_id)
+    state = StateManager(job_dir)
     cli_args = _build_cli_args(source_path, job_dir, payload.get("upload_args", {}))
 
+    # Initialize file system state
+    state.update_stage(ProcessingStage.STARTED, "Job started, preparing...")
+
     logger.info("Running solve-field for job %s", job_id)
+    state.update_stage(ProcessingStage.SOLVING, "Running solve-field...")
+
+    # Run solve-field with streaming output to log file
     proc = await asyncio.create_subprocess_exec(
         *cli_args,
         stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,  # Merge stderr into stdout
     )
-    stdout, stderr = await proc.communicate()
+
+    # Stream output to log file
+    stdout_lines = []
+    while True:
+        line = await proc.stdout.readline()
+        if not line:
+            break
+        decoded_line = line.decode("utf-8", errors="ignore")
+        stdout_lines.append(decoded_line)
+        state.append_log(decoded_line)
+
+    await proc.wait()
+    stdout_text = "".join(stdout_lines)
+
     if proc.returncode != 0:
-        logger.error("solve-field failed for job %s: %s", job_id, stderr.decode())
+        error_msg = f"solve-field failed with exit code {proc.returncode}"
+        logger.error("solve-field failed for job %s: %s", job_id, stdout_text)
+        state.update_stage(ProcessingStage.FAILED, error_msg, error=stdout_text)
         await job_service.update_job_status(
             db,
             job_id,
             JobStatus.failure,
-            failure_reason=stderr.decode(),
+            failure_reason=stdout_text,
         )
-        raise RuntimeError(f"solve-field failed: {stderr.decode()}")
+        raise RuntimeError(f"solve-field failed: {stdout_text}")
 
     logger.info("solve-field job %s completed", job_id)
 
@@ -114,6 +137,7 @@ async def solve_job(db: AsyncIOMotorDatabase, job_id: int, payload: dict[str, An
     if not wcs_path.exists():
         error_msg = f"solve-field completed but wcs.fits not found for job {job_id}"
         logger.error(error_msg)
+        state.update_stage(ProcessingStage.FAILED, error_msg, error=error_msg)
         await job_service.update_job_status(
             db,
             job_id,
@@ -122,7 +146,9 @@ async def solve_job(db: AsyncIOMotorDatabase, job_id: int, payload: dict[str, An
         )
         raise RuntimeError(error_msg)
 
-    stdout_text = stdout.decode("utf-8", errors="ignore")
+    # Update stage: calibrating
+    state.update_stage(ProcessingStage.CALIBRATING, "Extracting calibration data...")
+
     solver_meta = parse_solver_stdout(stdout_text)
 
     calibration = None
@@ -160,6 +186,9 @@ async def solve_job(db: AsyncIOMotorDatabase, job_id: int, payload: dict[str, An
     if getattr(settings, "enable_kmz", False):
         await job_service.add_artifact(db, job_id, ArtifactType.kml, str(job_dir / "sky.kmz"))
     
+    # Update stage: annotating
+    state.update_stage(ProcessingStage.ANNOTATING, "Generating annotated image...")
+
     # Generate annotated image (only if WCS file exists)
     if not wcs_path.exists():
         logger.warning("Skipping annotated image generation for job %s: wcs.fits not found", job_id)
@@ -179,3 +208,6 @@ async def solve_job(db: AsyncIOMotorDatabase, job_id: int, payload: dict[str, An
             logger.info("Using placeholder annotation for job %s: %s", job_id, annotated)
     await job_service.add_artifact(db, job_id, ArtifactType.annotated, str(annotated))
     logger.info("Annotated image artifact saved for job %s", job_id)
+
+    # Update stage: completed
+    state.update_stage(ProcessingStage.COMPLETED, "Job completed successfully")
