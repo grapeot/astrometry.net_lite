@@ -7,7 +7,6 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
-from starlette.datastructures import UploadFile as StarletteUploadFile
 from fastapi.responses import FileResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -28,17 +27,179 @@ async def _parse_request_payload(request: Request) -> tuple[dict[str, Any], dict
     files: dict[str, UploadFile] = {}
     payload: dict[str, Any] = {}
 
-    upload_types = (UploadFile, StarletteUploadFile)
+    logger.debug("Parsing request payload. Content-Type: %s", content_type)
 
-    if "multipart/form-data" in content_type or "application/x-www-form-urlencoded" in content_type:
-        form = await request.form()
-        data = form.get("request-json")
-        if data is None:
-            raise HTTPException(status_code=400, detail="missing request-json")
-        payload = json.loads(data)
-        for key, value in form.multi_items():
-            if isinstance(value, upload_types):
-                files[key] = value
+    upload_types = (UploadFile,)
+
+    if "application/x-www-form-urlencoded" in content_type:
+        # Standard form-urlencoded - use FastAPI's built-in parser
+        try:
+            form = await request.form()
+            logger.debug("Form keys (urlencoded parsing): %s", list(form.keys()))
+            
+            data = form.get("request-json")
+            if data is None:
+                logger.warning("request-json not found in form. Available fields: %s", list(form.keys()))
+                raise HTTPException(status_code=400, detail="missing request-json")
+            
+            data_str = str(data)
+            logger.debug("request-json content: %s", data_str[:200])
+            payload = json.loads(data_str)
+            
+            logger.debug("Parsed payload keys: %s", list(payload.keys()))
+            return payload, files
+        except HTTPException:
+            raise
+        except json.JSONDecodeError as e:
+            logger.error("Failed to parse request-json: %s", e)
+            raise HTTPException(status_code=400, detail=f"invalid JSON in request-json: {e}")
+        except Exception as parse_error:  # noqa: BLE001
+            logger.error("Form-urlencoded parsing failed: %s", parse_error, exc_info=True)
+            raise HTTPException(status_code=400, detail=f"failed to parse form data: {str(parse_error)}")
+    elif "multipart/form-data" in content_type:
+        # Check if this is the non-standard client format (boundary with many = signs)
+        is_client_format = "boundary=" in content_type and "===============" in content_type
+        
+        if is_client_format:
+            # Manual parsing for non-standard multipart format (client uses mixed \n and \r\n)
+            logger.debug("Detected client multipart format, using manual parsing")
+            try:
+                body_bytes = await request.body()
+                
+                # Extract boundary from Content-Type header
+                import re
+                boundary_match = re.search(r'boundary=["\']?([^"\';]+)["\']?', content_type)
+                
+                if not boundary_match:
+                    raise HTTPException(status_code=400, detail="could not extract boundary from Content-Type")
+                
+                boundary = boundary_match.group(1)
+                logger.debug("Extracted boundary: %s", boundary)
+                
+                # Split by boundary
+                boundary_bytes_pattern = f"--{boundary}".encode()
+                parts = body_bytes.split(boundary_bytes_pattern)
+                
+                logger.debug("Found %d parts after splitting by boundary", len(parts))
+                
+                for i, part in enumerate(parts[1:-1]):  # Skip first (empty) and last (closing boundary)
+                    # Remove leading \n or \r\n
+                    part = part.lstrip(b'\r\n').lstrip(b'\n')
+                    
+                    # Find header/body separator (double CRLF or double LF)
+                    header_end = part.find(b'\r\n\r\n')
+                    if header_end == -1:
+                        header_end = part.find(b'\n\n')
+                    
+                    if header_end == -1:
+                        logger.warning("Could not find header/body separator in part %d", i)
+                        continue
+                    
+                    headers_raw = part[:header_end]
+                    # Determine body start position
+                    if part[header_end:header_end+2] == b'\r\n':
+                        body_start = header_end + 4
+                    else:
+                        body_start = header_end + 2
+                    
+                    # Parse headers
+                    headers = {}
+                    for header_line in headers_raw.split(b'\n'):
+                        header_line = header_line.strip(b'\r')
+                        if b':' in header_line:
+                            key, value = header_line.split(b':', 1)
+                            headers[key.strip().lower().decode('utf-8', errors='ignore')] = value.strip().decode('utf-8', errors='ignore')
+                    
+                    # Extract field name from Content-Disposition
+                    content_disposition = headers.get('content-disposition', '')
+                    name_match = re.search(r'name=["\']?([^"\';]+)["\']?', content_disposition)
+                    if not name_match:
+                        continue
+                    
+                    field_name = name_match.group(1)
+                    filename_match = re.search(r'filename=["\']?([^"\';]+)["\']?', content_disposition)
+                    filename = filename_match.group(1) if filename_match else None
+                    
+                    logger.debug("Part %d: field_name=%s, filename=%s", i, field_name, filename)
+                    
+                    # Get body (remove trailing \n or \r\n before next boundary)
+                    body = part[body_start:]
+                    # Remove trailing newlines
+                    body = body.rstrip(b'\r\n').rstrip(b'\n')
+                    
+                    if field_name == "request-json":
+                        # Parse JSON payload
+                        try:
+                            payload = json.loads(body.decode('utf-8'))
+                            logger.debug("Parsed request-json: %s", list(payload.keys()))
+                        except json.JSONDecodeError as e:
+                            logger.error("Failed to parse request-json: %s", e)
+                            raise HTTPException(status_code=400, detail=f"invalid JSON in request-json: {e}")
+                    elif field_name == "file" and filename:
+                        # Create a temporary UploadFile-like object
+                        from io import BytesIO
+                        file_obj = UploadFile(
+                            filename=filename,
+                            file=BytesIO(body)
+                        )
+                        files["file"] = file_obj
+                        logger.debug("Created file object: filename=%s, size=%d", filename, len(body))
+                
+                logger.debug("Manual parsing complete. Payload keys: %s, files keys: %s", list(payload.keys()), list(files.keys()))
+                
+                if not payload:
+                    raise HTTPException(status_code=400, detail="missing request-json")
+                if "file" not in files and "multipart/form-data" in content_type:
+                    # File is optional for some endpoints (like login)
+                    logger.debug("No file found in multipart form (may be optional)")
+                
+                return payload, files
+            except HTTPException:
+                raise
+            except json.JSONDecodeError as e:
+                logger.error("Failed to parse request-json: %s", e)
+                raise HTTPException(status_code=400, detail=f"invalid JSON in request-json: {e}")
+            except Exception as e:  # noqa: BLE001
+                logger.error("Error parsing multipart form: %s", e, exc_info=True)
+                raise HTTPException(status_code=500, detail=f"upload failed: {str(e)}")
+        else:
+            # Standard multipart format - use FastAPI's built-in parser
+            try:
+                form = await request.form()
+                logger.debug("Form keys (standard parsing): %s", list(form.keys()))
+                
+                # Try to get request-json field
+                data = form.get("request-json")
+                if data is None:
+                    logger.warning("request-json not found in form. Available fields: %s", list(form.keys()))
+                    raise HTTPException(status_code=400, detail="missing request-json")
+                
+                # Handle both string and UploadFile types
+                if isinstance(data, upload_types):
+                    data_str = (await data.read()).decode('utf-8')
+                else:
+                    data_str = str(data)
+                
+                logger.debug("request-json content: %s", data_str[:200])
+                payload = json.loads(data_str)
+                
+                # Collect files
+                for key, value in form.multi_items():
+                    logger.debug("Form item: key=%s, type=%s", key, type(value))
+                    if isinstance(value, upload_types):
+                        files[key] = value
+                        logger.debug("Found file: key=%s, filename=%s", key, getattr(value, 'filename', None))
+                
+                logger.debug("Parsed payload keys: %s, files keys: %s", list(payload.keys()), list(files.keys()))
+                return payload, files
+            except HTTPException:
+                raise
+            except json.JSONDecodeError as e:
+                logger.error("Failed to parse request-json: %s", e)
+                raise HTTPException(status_code=400, detail=f"invalid JSON in request-json: {e}")
+            except Exception as parse_error:  # noqa: BLE001
+                logger.error("Standard multipart parsing failed: %s", parse_error, exc_info=True)
+                raise HTTPException(status_code=400, detail=f"failed to parse form data: {str(parse_error)}")
     elif "application/json" in content_type:
         payload = await request.json()
     else:
@@ -46,6 +207,7 @@ async def _parse_request_payload(request: Request) -> tuple[dict[str, Any], dict
         if body:
             payload = json.loads(body)
 
+    logger.debug("Parsed payload keys: %s, files keys: %s", list(payload.keys()), list(files.keys()))
     return payload, files
 
 
@@ -55,14 +217,19 @@ def _legacy_error(message: str) -> dict[str, Any]:
 
 @router.post("/login")
 async def login(request: Request, db: AsyncIOMotorDatabase = Depends(get_db)):
-    payload, _ = await _parse_request_payload(request)
-    apikey = payload.get("apikey")
-    if not apikey:
-        return _legacy_error('need "apikey"')
-    valid = await submission_service.validate_api_key(db, apikey)
-    if not valid:
-        return _legacy_error("bad apikey")
-    return {"status": "success", "session": apikey, "message": "authenticated"}
+    try:
+        payload, _ = await _parse_request_payload(request)
+        logger.debug("Login payload: %s", payload)
+        apikey = payload.get("apikey")
+        if not apikey:
+            return _legacy_error('need "apikey"')
+        valid = await submission_service.validate_api_key(db, apikey)
+        if not valid:
+            return _legacy_error("bad apikey")
+        return {"status": "success", "session": apikey, "message": "authenticated"}
+    except Exception as e:  # noqa: BLE001
+        logger.error("Error in login endpoint: %s", e, exc_info=True)
+        return _legacy_error(f"login failed: {str(e)}")
 
 
 @router.post("/upload")
