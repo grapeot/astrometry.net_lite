@@ -88,15 +88,30 @@ def _generate_annotation_python(job_id: int, source_path: Path, wcs_path: Path, 
     job_dir = prepare_job_dir(job_id)
     output_path = job_dir / "annotated.jpg"
     
-    # Load source image
+    # Load source image FIRST to get actual dimensions
     img = Image.open(source_path)
     if img.mode != "RGB":
         img = img.convert("RGB")
     width, height = img.size
+    logger.info("Source image size: %dx%d pixels", width, height)
     
-    # Load WCS
+    # Load WCS and recalculate radius from actual image dimensions
     with fits.open(wcs_path) as hdul:
-        wcs = WCS(hdul[0].header)
+        header = hdul[0].header
+        wcs = WCS(header)
+        
+        # Recalculate radius from actual image dimensions (more accurate than passed parameter)
+        from astropy.wcs.utils import proj_plane_pixel_scales
+        scales = proj_plane_pixel_scales(wcs)
+        width_deg = float(scales[0] * width)
+        height_deg = float(scales[1] * height)
+        calculated_radius = max(width_deg, height_deg) / 2
+        
+        logger.info("Field parameters: width=%.4f deg, height=%.4f deg, radius=%.4f deg (passed: %.4f)", 
+                   width_deg, height_deg, calculated_radius, radius)
+        
+        # Use calculated radius instead of passed parameter (more accurate)
+        radius = calculated_radius
     
     # Create drawing context
     draw = ImageDraw.Draw(img)
@@ -144,17 +159,20 @@ def _plot_bright_stars(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height: 
         with fits.open(bright_fn) as hdul:
             data = hdul[1].data  # Usually HDU 1 contains the table
             # Try both uppercase and lowercase column names
-            col_names = [name.upper() for name in data.names] if hasattr(data, 'names') else []
-            if "RA" in col_names or "ra" in data.dtype.names:
-                ra = data["RA"] if "RA" in data.dtype.names else data["ra"]
+            if "RA" in data.dtype.names:
+                ra = data["RA"]
+            elif "ra" in data.dtype.names:
+                ra = data["ra"]
             else:
-                logger.warning("RA column not found in bright stars catalog")
+                logger.warning("RA column not found in bright stars catalog. Available columns: %s", data.dtype.names)
                 return
             
-            if "DEC" in col_names or "dec" in data.dtype.names:
-                dec = data["DEC"] if "DEC" in data.dtype.names else data["dec"]
+            if "DEC" in data.dtype.names:
+                dec = data["DEC"]
+            elif "dec" in data.dtype.names:
+                dec = data["dec"]
             else:
-                logger.warning("DEC column not found in bright stars catalog")
+                logger.warning("DEC column not found in bright stars catalog. Available columns: %s", data.dtype.names)
                 return
             
             # Try various magnitude column names
@@ -163,17 +181,28 @@ def _plot_bright_stars(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height: 
             for col in mag_cols:
                 if col in data.dtype.names:
                     mag = data[col]
+                    logger.debug("Using magnitude column: %s", col)
                     break
             if mag is None:
                 mag = np.ones(len(ra)) * 5.0  # Default magnitude if not present
+                logger.debug("Using default magnitude 5.0")
             
             # Filter stars within field of view
             center = wcs.pixel_to_world(width / 2, height / 2)
             center_ra = center.ra.deg
             center_dec = center.dec.deg
             
+            logger.debug("Field center: RA=%.4f, Dec=%.4f, radius=%.4f deg", center_ra, center_dec, radius)
+            logger.debug("Image size: %dx%d", width, height)
+            
             # Convert to pixel coordinates
+            stars_drawn = 0
+            stars_checked = 0
+            stars_in_field = 0
+            stars_in_bounds = 0
+            
             for star_ra, star_dec, star_mag in zip(ra, dec, mag):
+                stars_checked += 1
                 try:
                     # Check if star is within reasonable distance
                     ra_diff = abs(star_ra - center_ra)
@@ -181,9 +210,12 @@ def _plot_bright_stars(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height: 
                         ra_diff = 360 - ra_diff
                     dec_diff = abs(star_dec - center_dec)
                     
-                    # Rough check: within 2x radius
-                    if ra_diff**2 + dec_diff**2 > (radius * 2)**2:
+                    # Rough check: within 2x radius (degrees)
+                    distance_sq = ra_diff**2 + dec_diff**2
+                    if distance_sq > (radius * 2)**2:
                         continue
+                    
+                    stars_in_field += 1
                     
                     # Convert RA/Dec to pixel coordinates
                     pixel = wcs.world_to_pixel_values(star_ra, star_dec)
@@ -191,13 +223,23 @@ def _plot_bright_stars(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height: 
                     
                     # Only plot if within image bounds
                     if 0 <= x < width and 0 <= y < height:
+                        stars_in_bounds += 1
                         # Star size based on magnitude (brighter = larger)
-                        size = max(1, int(6 - star_mag))
-                        # Draw star as circle
+                        # Make stars more visible - larger and brighter
+                        size = max(2, int(8 - star_mag * 0.8))
+                        # Draw star as bright circle with outline
                         draw.ellipse([x - size, y - size, x + size, y + size], 
-                                    fill=(255, 255, 200), outline=(255, 255, 150))
-                except Exception:  # noqa: BLE001
+                                    fill=(255, 255, 0), outline=(255, 200, 0), width=2)
+                        stars_drawn += 1
+                        if stars_drawn <= 5:  # Log first few stars
+                            logger.debug("Drew star: RA=%.4f Dec=%.4f mag=%.1f -> pixel=(%.1f, %.1f) size=%d", 
+                                        star_ra, star_dec, star_mag, x, y, size)
+                except Exception as e:  # noqa: BLE001
+                    logger.debug("Error converting star RA=%.4f Dec=%.4f: %s", star_ra, star_dec, e)
                     continue  # Skip stars that can't be converted
+            
+            logger.info("Bright stars: checked %d, in field %d, in bounds %d, drawn %d", 
+                       stars_checked, stars_in_field, stars_in_bounds, stars_drawn)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Error reading bright stars catalog: %s", exc)
 
@@ -222,10 +264,29 @@ def _plot_ngc_objects(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height: i
         # Plot NGC objects
         with fits.open(ngc_fn) as hdul:
             data = hdul[1].data
-            ra = data["RA"]
-            dec = data["DEC"]
+            # Try both uppercase and lowercase
+            if "RA" in data.dtype.names:
+                ra = data["RA"]
+            elif "ra" in data.dtype.names:
+                ra = data["ra"]
+            else:
+                logger.warning("RA column not found in NGC catalog. Available columns: %s", data.dtype.names)
+                return
             
+            if "DEC" in data.dtype.names:
+                dec = data["DEC"]
+            elif "dec" in data.dtype.names:
+                dec = data["dec"]
+            else:
+                logger.warning("DEC column not found in NGC catalog. Available columns: %s", data.dtype.names)
+                return
+            
+            ngc_drawn = 0
+            ngc_checked = 0
+            ngc_in_field = 0
+            ngc_in_bounds = 0
             for obj_ra, obj_dec in zip(ra, dec):
+                ngc_checked += 1
                 try:
                     ra_diff = abs(obj_ra - center_ra)
                     if ra_diff > 180:
@@ -235,22 +296,44 @@ def _plot_ngc_objects(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height: i
                     if ra_diff**2 + dec_diff**2 > (radius * 2)**2:
                         continue
                     
+                    ngc_in_field += 1
+                    
                     pixel = wcs.world_to_pixel_values(obj_ra, obj_dec)
                     x, y = float(pixel[0]), float(pixel[1])
                     
                     if 0 <= x < width and 0 <= y < height:
-                        # Draw NGC object as small square
-                        size = 3
+                        ngc_in_bounds += 1
+                        # Draw NGC object as visible square - make it larger and brighter
+                        size = 5
                         draw.rectangle([x - size, y - size, x + size, y + size],
-                                      fill=(100, 200, 255), outline=(50, 150, 255))
-                except Exception:  # noqa: BLE001
+                                      fill=(0, 150, 255), outline=(0, 100, 200), width=2)
+                        ngc_drawn += 1
+                except Exception as e:  # noqa: BLE001
+                    logger.debug("Error converting NGC RA=%.4f Dec=%.4f: %s", obj_ra, obj_dec, e)
                     continue
+            
+            logger.info("NGC objects: checked %d, in field %d, in bounds %d, drawn %d", 
+                       ngc_checked, ngc_in_field, ngc_in_bounds, ngc_drawn)
         
         # Plot IC objects (similar to NGC)
         with fits.open(ic_fn) as hdul:
             data = hdul[1].data
-            ra = data["RA"]
-            dec = data["DEC"]
+            # Try both uppercase and lowercase
+            if "RA" in data.dtype.names:
+                ra = data["RA"]
+            elif "ra" in data.dtype.names:
+                ra = data["ra"]
+            else:
+                logger.warning("RA column not found in IC catalog")
+                return
+            
+            if "DEC" in data.dtype.names:
+                dec = data["DEC"]
+            elif "dec" in data.dtype.names:
+                dec = data["dec"]
+            else:
+                logger.warning("DEC column not found in IC catalog")
+                return
             
             for obj_ra, obj_dec in zip(ra, dec):
                 try:
@@ -285,8 +368,22 @@ def _plot_abell_clusters(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height
     try:
         with fits.open(abell_fn) as hdul:
             data = hdul[1].data
-            ra = data["RA"]
-            dec = data["DEC"]
+            # Try both uppercase and lowercase
+            if "RA" in data.dtype.names:
+                ra = data["RA"]
+            elif "ra" in data.dtype.names:
+                ra = data["ra"]
+            else:
+                logger.warning("RA column not found in Abell catalog")
+                return
+            
+            if "DEC" in data.dtype.names:
+                dec = data["DEC"]
+            elif "dec" in data.dtype.names:
+                dec = data["dec"]
+            else:
+                logger.warning("DEC column not found in Abell catalog")
+                return
             
             center = wcs.pixel_to_world(width / 2, height / 2)
             center_ra = center.ra.deg

@@ -109,6 +109,19 @@ async def solve_job(db: AsyncIOMotorDatabase, job_id: int, payload: dict[str, An
 
     logger.info("solve-field job %s completed", job_id)
 
+    # Verify that essential files were created
+    wcs_path = job_dir / "wcs.fits"
+    if not wcs_path.exists():
+        error_msg = f"solve-field completed but wcs.fits not found for job {job_id}"
+        logger.error(error_msg)
+        await job_service.update_job_status(
+            db,
+            job_id,
+            JobStatus.failure,
+            failure_reason=error_msg,
+        )
+        raise RuntimeError(error_msg)
+
     stdout_text = stdout.decode("utf-8", errors="ignore")
     solver_meta = parse_solver_stdout(stdout_text)
 
@@ -116,7 +129,7 @@ async def solve_job(db: AsyncIOMotorDatabase, job_id: int, payload: dict[str, An
     try:
         calibration = extract_calibration(
             job_dir / "new.fits",
-            job_dir / "wcs.fits",
+            wcs_path,
             solver_meta.orientation,
             solver_meta.parity,
         )
@@ -147,17 +160,22 @@ async def solve_job(db: AsyncIOMotorDatabase, job_id: int, payload: dict[str, An
     if getattr(settings, "enable_kmz", False):
         await job_service.add_artifact(db, job_id, ArtifactType.kml, str(job_dir / "sky.kmz"))
     
-    # Generate annotated image
-    radius = calibration.get("radius", 1.0) if calibration else 1.0
-    logger.info("Starting annotated image generation for job %s with radius %s", job_id, radius)
-    try:
-        annotated = await annotator.generate_annotation(
-            job_id, source_path, job_dir / "wcs.fits", radius
-        )
-        logger.info("Annotated image generated successfully for job %s: %s", job_id, annotated)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Failed to generate annotation for job %s: %s", job_id, exc, exc_info=True)
+    # Generate annotated image (only if WCS file exists)
+    if not wcs_path.exists():
+        logger.warning("Skipping annotated image generation for job %s: wcs.fits not found", job_id)
         annotated = annotator.generate_placeholder_annotation(job_id, source_path)
         logger.info("Using placeholder annotation for job %s: %s", job_id, annotated)
+    else:
+        radius = calibration.get("radius", 1.0) if calibration else 1.0
+        logger.info("Starting annotated image generation for job %s with radius %s", job_id, radius)
+        try:
+            annotated = await annotator.generate_annotation(
+                job_id, source_path, wcs_path, radius
+            )
+            logger.info("Annotated image generated successfully for job %s: %s", job_id, annotated)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to generate annotation for job %s: %s", job_id, exc, exc_info=True)
+            annotated = annotator.generate_placeholder_annotation(job_id, source_path)
+            logger.info("Using placeholder annotation for job %s: %s", job_id, annotated)
     await job_service.add_artifact(db, job_id, ArtifactType.annotated, str(annotated))
     logger.info("Annotated image artifact saved for job %s", job_id)
