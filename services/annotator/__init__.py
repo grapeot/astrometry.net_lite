@@ -155,10 +155,10 @@ def _generate_annotation_python(job_id: int, source_path: Path, wcs_path: Path, 
             continue
     
     logger.info("Drew %d objects on image", objects_drawn)
-    
+
     # Save annotated image
     img.save(output_path, "JPEG", quality=95)
-    logger.info("Generated annotated image for job %s at %s", job_id, output_path)
+    logger.info("Generated annotated image for job %s at %s (file size: %d bytes)", job_id, output_path, output_path.stat().st_size)
     return output_path
 
 
