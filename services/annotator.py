@@ -196,7 +196,19 @@ def _load_catalog_csv(catalog_path: Path) -> list[CelestialObject]:
                     ra = float(row["ra"])
                     dec = float(row["dec"])
                     ang_diameter_str = row.get("ang_diameter", "").strip()
-                    ang_diameter = float(ang_diameter_str) if ang_diameter_str else None
+                    ang_diameter = None
+                    if ang_diameter_str:
+                        # Handle formats like "66X60" (extract first number or average)
+                        if 'X' in ang_diameter_str or 'x' in ang_diameter_str:
+                            # Extract numbers from format like "66X60"
+                            import re
+                            numbers = re.findall(r'\d+\.?\d*', ang_diameter_str)
+                            if numbers:
+                                # Use average of the two dimensions
+                                ang_diameter = sum(float(n) for n in numbers) / len(numbers)
+                        else:
+                            # Try to parse as regular float
+                            ang_diameter = float(ang_diameter_str)
                     objects.append(CelestialObject(name=name, ra=ra, dec=dec, ang_diameter=ang_diameter))
                 except (ValueError, KeyError) as e:
                     logger.debug("Skipping invalid catalog row: %s, error: %s", row, e)
@@ -469,8 +481,8 @@ def _generate_annotation_python(job_id: int, source_path: Path, wcs_path: Path, 
     # Calculate dynamic sizing
     min_dimension = min(width, height)
     scale_factor = min_dimension / 1000.0
-    # Font size: 4x the original (was 12 * scale_factor, now 48 * scale_factor)
-    font_size = max(10, int(48 * scale_factor))
+    # Font size: 4x the original
+    font_size = max(10, int(24 * scale_factor))
     
     # Create drawing context
     draw = ImageDraw.Draw(img)
