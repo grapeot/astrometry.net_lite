@@ -92,16 +92,36 @@ python scripts/test_service.py --file test.jpg --apikey test-key-12345
 
 ### Docker (experimental)
 
+The Dockerfile includes building astrometry.net CLI from source, which requires significant build time and dependencies.
+
+**Build and run:**
 ```bash
 docker build -t astrometry-lite .
-docker run --rm -p 8000:8000 --env-file .env \
+docker run --rm -p 8002:8002 \
+  -e MONGODB_URI=mongodb://host.docker.internal:27017 \
+  -e MONGODB_DBNAME=astrometry_dev \
   -v "$PWD/data:/app/data" \
   -v "$PWD/astrometry_indexes:/app/astrometry_indexes" \
   astrometry-lite
 ```
 
-> The Docker image requires astrometry.net CLI binaries. You can add them to the Dockerfile or mount host paths.
-> KML/KMZ generation is disabled by default because the Homebrew version doesn't include `wcs2kml`. To enable KMZ, manually install the tool and add `--kmz` parameter when executing the CLI.
+**Alternative: Mount host binaries (faster, requires astrometry.net installed on host):**
+```bash
+docker build -t astrometry-lite .
+docker run --rm -p 8002:8002 \
+  -e MONGODB_URI=mongodb://host.docker.internal:27017 \
+  -e MONGODB_DBNAME=astrometry_dev \
+  -e SOLVE_FIELD_BIN=/host/bin/solve-field \
+  -e AUGMENT_XYLIST_BIN=/host/bin/augment-xylist \
+  -e ASTROMETRY_ENGINE_BIN=/host/bin/astrometry-engine \
+  -v "/opt/homebrew/bin:/host/bin:ro" \
+  -v "$PWD/data:/app/data" \
+  -v "$PWD/astrometry_indexes:/app/astrometry_indexes" \
+  astrometry-lite
+```
+
+> **Note:** The Dockerfile builds astrometry.net CLI from source, which can take 10-20 minutes. For faster builds, mount binaries from your host system (macOS: `/opt/homebrew/bin`, Linux: `/usr/local/bin` or `/usr/bin`).
+> KML/KMZ generation is disabled by default. To enable KMZ, set `ENABLE_KMZ=true` and ensure `wcs2kml` is available.
 
 ### Using the Legacy Python Client
 
