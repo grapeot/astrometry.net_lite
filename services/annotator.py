@@ -92,8 +92,9 @@ def _get_catalog_priority(name: str) -> int:
     1. M (Messier) - highest
     2. NGC
     3. IC
-    4. LBN/LDN
-    5. VdB/Sharpless/R-BEL/ABELL - lowest
+    4. Barnard (famous dark nebulae like B33 - Horsehead Nebula)
+    5. LBN/LDN
+    6. VdB/Sharpless/R-BEL/ABELL - lowest
     """
     name_upper = name.upper().strip()
     if name_upper.startswith("M "):
@@ -102,12 +103,14 @@ def _get_catalog_priority(name: str) -> int:
         return 2
     elif name_upper.startswith("IC "):
         return 3
+    elif name_upper.startswith("BARNARD "):
+        return 4  # Barnard objects (like B33 - Horsehead Nebula) are famous
     elif name_upper.startswith("LBN ") or name_upper.startswith("LDN "):
-        return 4
-    elif any(name_upper.startswith(prefix) for prefix in ["VDB ", "SHARPLESS ", "R-BEL ", "ABELL "]):
         return 5
+    elif any(name_upper.startswith(prefix) for prefix in ["VDB ", "SHARPLESS ", "R-BEL ", "ABELL "]):
+        return 6
     else:
-        return 6  # Unknown types get lowest priority
+        return 7  # Unknown types get lowest priority
 
 
 def _are_objects_duplicate(obj1: CelestialObject, obj2: CelestialObject, duplicate_threshold_deg: float = 0.1) -> bool:
@@ -430,7 +433,7 @@ def _draw_object(draw: ImageDraw.ImageDraw, x: float, y: float, obj: CelestialOb
         pass  # Skip label if font rendering fails
 
 
-def _generate_annotation_python(job_id: int, source_path: Path, wcs_path: Path, radius: float, scale: float = 1.0, max_objects: int = 15) -> Path:
+def _generate_annotation_python(job_id: int, source_path: Path, wcs_path: Path, radius: float, scale: float = 1.0, max_objects: int = 20) -> Path:
     """Generate annotated image using catalogs.csv.
     
     Args:
@@ -802,7 +805,7 @@ def _plot_abell_clusters(draw: ImageDraw.ImageDraw, wcs: WCS, width: int, height
         logger.warning("Error reading Abell catalog: %s", exc)
 
 
-async def generate_annotation(job_id: int, source_path: Path, wcs_path: Path, radius: float, scale: float = 1.0, max_objects: int = 15) -> Path:
+async def generate_annotation(job_id: int, source_path: Path, wcs_path: Path, radius: float, scale: float = 1.0, max_objects: int = 20) -> Path:
     """Generate annotated image using catalogs.csv.
     
     Args:
