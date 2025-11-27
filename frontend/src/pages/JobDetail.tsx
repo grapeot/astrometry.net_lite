@@ -83,16 +83,14 @@ export function JobDetail() {
       {/* Main content area */}
       <div className="detail-content">
         {/* Image display */}
-        {isCompleted && job.has_annotated_image && job.annotated_image_url && (
+        {isCompleted && job.has_annotated_image && job.annotated_image_url ? (
           <div className="detail-image">
             <img
               src={`${API_ROOT}${job.annotated_image_url}`}
               alt={`Annotated Job ${job.job_id}`}
             />
           </div>
-        )}
-
-        {!isCompleted && job.original_image_url && (
+        ) : job.original_image_url ? (
           <div className="detail-image">
             <img
               src={`${API_ROOT}${job.original_image_url}`}
@@ -100,7 +98,7 @@ export function JobDetail() {
             />
             {isRunning && <div className="image-overlay">Processing...</div>}
           </div>
-        )}
+        ) : null}
 
         {/* Failure reason */}
         {isFailed && job.failure_reason && (

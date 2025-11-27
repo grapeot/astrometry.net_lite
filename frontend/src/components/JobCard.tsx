@@ -28,7 +28,7 @@ function formatDate(dateStr: string | null): string {
 }
 
 export function JobCard({ job }: JobCardProps) {
-  const imageUrl = job.has_annotated_image
+  const imageUrl = job.has_annotated_image && job.annotated_image_url
     ? `${API_ROOT}${job.annotated_image_url}`
     : job.original_image_url
       ? `${API_ROOT}${job.original_image_url}`
