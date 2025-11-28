@@ -68,6 +68,19 @@ export async function uploadFile(session: string, file: File): Promise<UploadRes
   return res.json();
 }
 
+export async function uploadFromUrl(session: string, url: string): Promise<UploadResponse> {
+  const params = new URLSearchParams();
+  params.append('request-json', JSON.stringify({ session, url }));
+  const res = await fetch(`${API_BASE}/url_upload`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: params.toString(),
+  });
+  return res.json();
+}
+
 export interface MyJobsResponse {
   status: string;
   jobs?: number[];

@@ -163,6 +163,22 @@ th {
   font-size: 0.9rem;
 }
 
+.btn-new-job {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  text-decoration: none;
+  border-radius: 999px;
+  font-weight: 600;
+  background: linear-gradient(120deg, #5bd5f9, #917bff);
+  color: #060b16;
+  transition: opacity 0.2s ease;
+}
+
+.btn-new-job:hover {
+  opacity: 0.9;
+}
+
 .job-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));

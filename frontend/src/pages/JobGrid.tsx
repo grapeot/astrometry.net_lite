@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useJobList } from '../hooks/useJobList';
 import { JobCard } from '../components/JobCard';
 
@@ -11,6 +12,9 @@ export function JobGrid() {
         <p>Public job gallery - click any job to view details</p>
         <div className="header-actions">
           <span className="job-count">{total} jobs</span>
+          <Link to="/new" className="btn-new-job">
+            New Job
+          </Link>
           <button onClick={refresh} disabled={loading} className="btn-refresh">
             {loading ? 'Loading...' : 'Refresh'}
           </button>

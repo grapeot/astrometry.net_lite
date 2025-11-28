@@ -5,6 +5,7 @@ import './index.css'
 import './App.css'
 import { JobGrid } from './pages/JobGrid'
 import { JobDetail } from './pages/JobDetail'
+import { NewJob } from './pages/NewJob'
 import App from './App'
 
 createRoot(document.getElementById('root')!).render(
@@ -13,6 +14,7 @@ createRoot(document.getElementById('root')!).render(
       <Routes>
         <Route path="/" element={<JobGrid />} />
         <Route path="/jobs/:jobId" element={<JobDetail />} />
+        <Route path="/new" element={<NewJob />} />
         <Route path="/console" element={<App />} />
       </Routes>
     </BrowserRouter>
