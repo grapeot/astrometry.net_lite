@@ -7,11 +7,9 @@ services:
     ports:
       - "27017:27017"
     volumes:
-      - ./mongodb_data:/data/db
-      - ./mongodb.log:/var/log/mongodb/mongodb.log
+      - ./data/mongodb:/data/db
     environment:
       - MONGO_INITDB_DATABASE=astrometry_dev
-    command: mongod --logpath /var/log/mongodb/mongodb.log --logappend
     networks:
       - astrometry-network
     restart: unless-stopped

@@ -90,24 +90,73 @@ python scripts/test_service.py --quick
 python scripts/test_service.py --file test.jpg --apikey test-key-12345
 ```
 
-### Docker (experimental)
+### Docker Compose (Recommended)
 
-The Dockerfile includes building astrometry.net CLI from source, which requires significant build time and dependencies.
+The easiest way to run all services is using Docker Compose, which includes MongoDB, backend, and frontend.
+
+**Prerequisites:**
+- Docker and Docker Compose installed
+- Pre-downloaded index files in `./astrometry_indexes/` (download from https://data.astrometry.net/)
+
+**Start all services:**
+```bash
+docker-compose up -d
+```
+
+This will start:
+- **MongoDB** on port `27017` (data persisted in `./data/mongodb/`)
+- **Backend API** on port `8002` (http://localhost:8002)
+- **Frontend** on port `5173` (http://localhost:5173)
+
+**View logs:**
+```bash
+docker-compose logs -f          # All services
+docker-compose logs -f backend  # Backend only
+docker-compose logs -f frontend # Frontend only
+docker-compose logs -f mongodb # MongoDB only
+```
+
+**Stop services:**
+```bash
+docker-compose down
+```
+
+**Rebuild after code changes:**
+```bash
+docker-compose up -d --build
+```
+
+**Access services:**
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:8002
+- API Docs: http://localhost:8002/docs
+- MongoDB: `mongodb://localhost:27017`
+
+**Data persistence:**
+All data is persisted in the `./data/` directory:
+- MongoDB data: `./data/mongodb/`
+- Job outputs: `./data/jobs/`
+- Upload cache: `./data/uploads/`
+- MongoDB logs: `./data/mongodb.log`
+
+### Docker (Single Container - Experimental)
+
+For running just the backend in a single container (requires MongoDB running separately):
 
 **Build and run:**
 ```bash
-docker build -t astrometry-lite .
+docker build -t astrometry-backend .
 docker run --rm -p 8002:8002 \
   -e MONGODB_URI=mongodb://host.docker.internal:27017 \
   -e MONGODB_DBNAME=astrometry_dev \
   -v "$PWD/data:/app/data" \
   -v "$PWD/astrometry_indexes:/app/astrometry_indexes" \
-  astrometry-lite
+  astrometry-backend
 ```
 
 **Alternative: Mount host binaries (faster, requires astrometry.net installed on host):**
 ```bash
-docker build -t astrometry-lite .
+docker build -t astrometry-backend .
 docker run --rm -p 8002:8002 \
   -e MONGODB_URI=mongodb://host.docker.internal:27017 \
   -e MONGODB_DBNAME=astrometry_dev \
@@ -117,10 +166,10 @@ docker run --rm -p 8002:8002 \
   -v "/opt/homebrew/bin:/host/bin:ro" \
   -v "$PWD/data:/app/data" \
   -v "$PWD/astrometry_indexes:/app/astrometry_indexes" \
-  astrometry-lite
+  astrometry-backend
 ```
 
-> **Note:** The Dockerfile builds astrometry.net CLI from source, which can take 10-20 minutes. For faster builds, mount binaries from your host system (macOS: `/opt/homebrew/bin`, Linux: `/usr/local/bin` or `/usr/bin`).
+> **Note:** The Dockerfile installs astrometry.net CLI via apt-get (Debian packages), which is faster than building from source.
 > KML/KMZ generation is disabled by default. To enable KMZ, set `ENABLE_KMZ=true` and ensure `wcs2kml` is available.
 
 ### Using the Legacy Python Client

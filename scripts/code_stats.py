@@ -67,7 +67,7 @@ def should_exclude(path):
         return True
     
     # 排除常见的非代码目录（检查路径的任意部分）
-    exclude_dirs = ['node_modules', '__pycache__', '.git', 'venv', 'mongodb_data', 
+    exclude_dirs = ['node_modules', '__pycache__', '.git', 'venv', 
                     'data', 'logs', 'astrometry_indexes', '.pytest_cache', '.mypy_cache']
     
     for exclude_dir in exclude_dirs:
@@ -81,7 +81,7 @@ def should_exclude(path):
         return True
     
     # 排除没有扩展名的数据文件（mongodb日志等）
-    if not ext and any(x in path_str for x in ['mongodb_data', 'diagnostic.data', 'journal']):
+    if not ext and any(x in path_str for x in ['data/mongodb', 'diagnostic.data', 'journal']):
         return True
     
     return False

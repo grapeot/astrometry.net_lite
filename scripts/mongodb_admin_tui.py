@@ -46,8 +46,12 @@ MongoDB Admin TUI - Terminal User Interface for MongoDB management
 """
 
 import shutil
+import sys
 from pathlib import Path
 from typing import Any, Optional
+
+# Add project root to Python path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from astropy.io import fits
 from astropy.wcs import WCS
@@ -549,6 +553,68 @@ class ConfirmDialog(ModalScreen[bool]):
             event.prevent_default()
 
 
+class ErrorDialog(ModalScreen[None]):
+    """错误对话框 - 用于显示连接错误等"""
+
+    CSS = """
+    ErrorDialog {
+        align: center middle;
+    }
+    
+    .error-dialog-container {
+        width: 70;
+        height: auto;
+        border: solid $error;
+        background: $surface;
+        padding: 1;
+    }
+    
+    .error-dialog-title {
+        text-style: bold;
+        color: $error;
+        width: 100%;
+        text-align: center;
+        margin-bottom: 1;
+    }
+    
+    .error-dialog-message {
+        width: 100%;
+        margin-bottom: 1;
+        padding: 1;
+    }
+    
+    .error-dialog-buttons {
+        width: 100%;
+        height: auto;
+        align: center middle;
+        margin-top: 1;
+    }
+    """
+
+    def __init__(self, title: str, message: str, **kwargs):
+        super().__init__(**kwargs)
+        self.dialog_title = title
+        self.message = message
+
+    def compose(self) -> ComposeResult:
+        with Container(classes="error-dialog-container"):
+            yield Label(self.dialog_title, classes="error-dialog-title")
+            yield Label(self.message, classes="error-dialog-message")
+            with Horizontal(classes="error-dialog-buttons"):
+                yield Button("退出 (q)", variant="error", id="exit")
+
+    @on(Button.Pressed, "#exit")
+    def on_exit(self) -> None:
+        self.app.exit()
+
+    def on_key(self, event) -> None:
+        """键盘快捷键"""
+        if event.key == "q" or event.key == "escape":
+            self.app.exit()
+        else:
+            event.prevent_default()
+
+
 class InputConfirmDialog(ModalScreen[bool]):
     """输入确认对话框 - 用于重置数据库等危险操作"""
 
@@ -722,14 +788,39 @@ class MongoDBAdminApp(App):
     async def on_mount(self) -> None:
         """应用启动时初始化"""
         # 连接 MongoDB
-        self.client = create_mongo_client()
-        self.db = get_database(self.client)
+        try:
+            self.client = create_mongo_client()
+            self.db = get_database(self.client)
+            
+            # 测试连接
+            await self.client.admin.command('ping')
+        except Exception as e:
+            error_title = "❌ 无法连接到 MongoDB"
+            error_msg = (
+                f"错误信息: {str(e)}\n\n"
+                f"请检查:\n"
+                f"  1. MongoDB 是否正在运行\n"
+                f"  2. 连接字符串是否正确 (当前: {settings.mongodb_uri})\n"
+                f"  3. 如果使用 Docker，请运行: docker-compose up -d mongodb\n"
+                f"  4. 如果使用本地 MongoDB，请运行: ./scripts/start_mongodb.sh"
+            )
+            # 显示错误对话框
+            await self.push_screen(ErrorDialog(error_title, error_msg))
+            return
         
         # 加载集合列表
-        collection_list = self.query_one(CollectionList)
-        await collection_list.load_collections(self.db)
-        
-        # 静默启动，不显示提示
+        try:
+            collection_list = self.query_one(CollectionList)
+            await collection_list.load_collections(self.db)
+        except Exception as e:
+            error_title = "❌ 无法加载 MongoDB 集合"
+            error_msg = (
+                f"错误信息: {str(e)}\n\n"
+                f"请检查数据库连接和权限。"
+            )
+            # 显示错误对话框
+            await self.push_screen(ErrorDialog(error_title, error_msg))
+            return
 
     async def on_unmount(self) -> None:
         """应用退出时清理"""

@@ -9,8 +9,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # 配置（相对于项目根目录）
-DATA_DIR="$PROJECT_ROOT/mongodb_data"
-LOG_FILE="$PROJECT_ROOT/mongodb.log"
+DATA_DIR="$PROJECT_ROOT/data/mongodb"
+LOG_FILE="$PROJECT_ROOT/data/mongodb.log"
 PORT=27017
 MONGOD_BIN="/opt/homebrew/bin/mongod"
 

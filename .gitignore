@@ -1,6 +1,5 @@
-# MongoDB 数据目录和日志
-mongodb_data/
-mongodb.log
+# MongoDB 数据目录和日志（现在在 data/mongodb 和 data/mongodb.log）
+# 已在 data/ 中统一忽略
 
 # Python
 __pycache__/
