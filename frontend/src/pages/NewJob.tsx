@@ -1,12 +1,13 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { uploadFile, uploadFromUrl, login, type UploadResponse } from '../api';
 
 const SESSION_STORAGE_KEY = 'astrometry_session';
+const PUBLIC_API_KEY = 'public';
 
 export function NewJob() {
   const navigate = useNavigate();
-  const [apiKey, setApiKey] = useState('');
+  const [apiKey, setApiKey] = useState(PUBLIC_API_KEY);
   const [session, setSession] = useState<string | null>(() => {
     return localStorage.getItem(SESSION_STORAGE_KEY);
   });
@@ -15,6 +16,24 @@ export function NewJob() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Auto-login with public API key if no session exists
+  useEffect(() => {
+    if (!session) {
+      const autoLogin = async () => {
+        try {
+          const res = await login(PUBLIC_API_KEY);
+          if (res.status === 'success' && res.session) {
+            setSession(res.session);
+            localStorage.setItem(SESSION_STORAGE_KEY, res.session);
+          }
+        } catch {
+          // Silently fail, user can manually login
+        }
+      };
+      void autoLogin();
+    }
+  }, [session]);
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
@@ -87,16 +106,16 @@ export function NewJob() {
         <div className="panel">
           <h2>Login</h2>
           <p style={{ color: '#9ca3af', marginBottom: '1rem' }}>
-            Please login with API key to submit new astrometry jobs
+            Using public API key. You can enter a custom API key if needed.
           </p>
           <form onSubmit={handleLogin} className="form">
             <label>
               API Key
               <input
-                type="password"
+                type="text"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="Paste API key"
+                placeholder="public (default)"
                 style={{
                   padding: '0.8rem 1rem',
                   borderRadius: '10px',

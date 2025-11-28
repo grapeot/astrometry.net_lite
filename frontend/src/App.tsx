@@ -29,9 +29,10 @@ type JobDetails = {
 }
 
 const SESSION_STORAGE_KEY = 'astrometry_session'
+const PUBLIC_API_KEY = 'public'
 
 function App() {
-  const [apiKey, setApiKey] = useState('')
+  const [apiKey, setApiKey] = useState(PUBLIC_API_KEY)
   const [session, setSession] = useState<string | null>(() => {
     // Restore session from localStorage
     return localStorage.getItem(SESSION_STORAGE_KEY)
@@ -43,6 +44,24 @@ function App() {
   const [message, setMessage] = useState<string | null>(null)
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null)
   const [jobDetails, setJobDetails] = useState<Record<number, JobDetails>>({})
+
+  // Auto-login with public API key if no session exists
+  useEffect(() => {
+    if (!session) {
+      const autoLogin = async () => {
+        try {
+          const res = await login(PUBLIC_API_KEY)
+          if (res.status === 'success' && res.session) {
+            setSession(res.session)
+            localStorage.setItem(SESSION_STORAGE_KEY, res.session)
+          }
+        } catch {
+          // Silently fail, user can manually login
+        }
+      }
+      void autoLogin()
+    }
+  }, [session])
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -162,14 +181,17 @@ function App() {
       {!session && (
         <section className="panel">
           <h2>Login</h2>
+          <p style={{ color: '#9ca3af', marginBottom: '1rem' }}>
+            Using public API key. You can enter a custom API key if needed.
+          </p>
           <form onSubmit={handleLogin} className="form">
             <label>
               API Key
               <input
-                type="password"
+                type="text"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="Paste here"
+                placeholder="public (default)"
               />
             </label>
             <button type="submit" disabled={loading || !apiKey.trim()}>
