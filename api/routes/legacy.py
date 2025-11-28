@@ -282,7 +282,18 @@ async def url_upload(request: Request, db: AsyncIOMotorDatabase = Depends(get_db
         except httpx.HTTPError as exc:  # noqa: PERF203
             logger.error("Failed to download %s: %s", url, exc)
             return _legacy_error("failed to fetch url")
-        filename = Path(url).name or "remote-upload"
+        
+        # Extract and sanitize filename from URL
+        from urllib.parse import urlparse, unquote
+        from services.storage import sanitize_filename
+        
+        parsed_url = urlparse(url)
+        # Get filename from URL path, remove query parameters
+        url_path = unquote(parsed_url.path)
+        filename = Path(url_path).name if url_path else "remote-upload"
+        # Sanitize filename to remove query params and limit length
+        filename = sanitize_filename(filename) if filename else "remote-upload"
+        
         result = await submission_service.create_submission(
             db,
             api_key=apikey,
