@@ -4,6 +4,18 @@
 
 所有服务的端口都可以通过环境变量统一配置。
 
+**⚠️ 重要：Docker容器间通信 vs 外部端口映射**
+
+在Docker Compose中：
+- **容器内部端口**：MongoDB容器内部始终监听27017端口
+- **主机端口映射**：`MONGODB_PORT`控制从宿主机访问MongoDB的端口
+- **容器间通信**：后端和worker通过服务名`mongodb`连接，使用容器内部端口27017（不受`MONGODB_PORT`影响）
+
+**示例**：
+- 设置 `MONGODB_PORT=27018` 后：
+  - 从宿主机访问：`mongodb://localhost:27018` ✅
+  - 容器间通信：`mongodb://mongodb:27017` ✅（后端和worker自动使用这个）
+
 ## 配置方式
 
 ### 方式1: 使用 .env 文件（推荐）
@@ -110,12 +122,49 @@ docker-compose up -d
 
 Backend将在 `http://localhost:9000` 运行。
 
+## 重要说明：Docker容器间通信 vs 外部端口映射
+
+### Docker环境中的端口配置
+
+在Docker Compose中，有两种端口概念：
+
+1. **容器内部端口**：容器内服务监听的端口（MongoDB容器内始终是27017）
+2. **主机端口映射**：从宿主机访问容器服务的端口（`MONGODB_PORT`控制这个）
+
+**关键点**：
+- **容器间通信**：后端和worker容器通过服务名 `mongodb` 连接，使用**容器内部端口27017**
+- **外部访问**：从宿主机访问MongoDB使用**主机端口**（`MONGODB_PORT`环境变量）
+
+**示例**：
+```yaml
+# docker-compose.yml
+ports:
+  - "${MONGODB_PORT:-27017}:27017"  # 主机端口:容器端口
+```
+
+如果设置 `MONGODB_PORT=27018`：
+- 从宿主机访问：`mongodb://localhost:27018` ✅
+- 容器间通信：`mongodb://mongodb:27017` ✅（不受影响）
+
+### 本地开发（非Docker）
+
+如果不在Docker中运行，需要直接设置MongoDB URI：
+
+```bash
+# 方式1: 使用环境变量
+export MONGODB_URI=mongodb://localhost:27018
+
+# 方式2: 在.env文件中
+MONGODB_URI=mongodb://localhost:27018
+```
+
 ## 注意事项
 
 1. **端口冲突**: 确保新端口没有被其他服务占用
 2. **CORS设置**: 如果修改了Frontend端口，可能需要更新Backend的CORS配置
 3. **环境变量优先级**: Docker Compose中的环境变量会覆盖`.env`文件
 4. **重启服务**: 修改端口后需要重启所有相关服务
+5. **Docker容器通信**: 容器间通信使用服务名和容器内部端口，不受`MONGODB_PORT`影响
 
 ## 验证配置
 
