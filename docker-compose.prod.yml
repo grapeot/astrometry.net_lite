@@ -1,13 +1,9 @@
-name: astrometry-dev
-
-# 开发环境配置
-# 使用: docker-compose up -d
-# 特点: 代码挂载、热重载、开发服务器
+name: astrometry-prod
 
 services:
   mongodb:
     image: mongo:8
-    container_name: astrometry-mongodb
+    container_name: astrometry-mongodb-prod
     ports:
       - "27017:27017"
     volumes:
@@ -23,19 +19,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: astrometry-backend
+    container_name: astrometry-backend-prod
     ports:
       - "8002:8002"
     volumes:
+      # 生产环境只挂载数据目录，不挂载代码
       - ./data:/app/data
       - ./astrometry_indexes:/app/astrometry_indexes
       - ./catalogs:/app/catalogs
-      # 挂载代码目录以实现热重载（开发模式）
-      - ./api:/app/api
-      - ./core:/app/core
-      - ./domain:/app/domain
-      - ./services:/app/services
-      - ./workers:/app/workers
     environment:
       - MONGODB_URI=mongodb://mongodb:27017
       - MONGODB_DBNAME=astrometry_dev
@@ -46,28 +37,25 @@ services:
     networks:
       - astrometry-network
     restart: unless-stopped
-    # 使用 --reload 启用自动重载
-    command: uvicorn api.main:app --host 0.0.0.0 --port 8002 --reload
+    # 生产环境不使用 --reload
+    # command 使用 Dockerfile 中的默认 CMD
 
   frontend:
-    image: astrometry-frontend:latest
+    image: astrometry-frontend-prod:latest
     build:
       context: ./frontend
-      dockerfile: Dockerfile
-    container_name: astrometry-frontend
+      dockerfile: Dockerfile.prod
+      args:
+        # 设置前端 API 基础 URL（根据实际部署环境修改）
+        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:8002}
+    container_name: astrometry-frontend-prod
     ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    environment:
-      - VITE_API_BASE=http://localhost:8002
+      - "80:80"
     depends_on:
       - backend
     networks:
       - astrometry-network
     restart: unless-stopped
-    command: npm run dev -- --host 0.0.0.0
 
 networks:
   astrometry-network:

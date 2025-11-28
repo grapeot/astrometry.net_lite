@@ -90,7 +90,7 @@ python scripts/test_service.py --quick
 python scripts/test_service.py --file test.jpg --apikey test-key-12345
 ```
 
-### Docker Compose (Recommended)
+### Docker Compose
 
 The easiest way to run all services is using Docker Compose, which includes MongoDB, backend, and frontend.
 
@@ -98,15 +98,22 @@ The easiest way to run all services is using Docker Compose, which includes Mong
 - Docker and Docker Compose installed
 - Pre-downloaded index files in `./astrometry_indexes/` (download from https://data.astrometry.net/)
 
-**Start all services:**
+#### Development Mode (Default)
+
+**Start development services:**
 ```bash
 docker-compose up -d
 ```
 
 This will start:
 - **MongoDB** on port `27017` (data persisted in `./data/mongodb/`)
-- **Backend API** on port `8002` (http://localhost:8002)
-- **Frontend** on port `5173` (http://localhost:5173)
+- **Backend API** on port `8002` (http://localhost:8002) with hot-reload
+- **Frontend** on port `5173` (http://localhost:5173) with Vite dev server
+
+**Features:**
+- Code is mounted into containers for live editing
+- Hot reload enabled for both frontend and backend
+- Perfect for local development
 
 **View logs:**
 ```bash
@@ -121,13 +128,26 @@ docker-compose logs -f mongodb # MongoDB only
 docker-compose down
 ```
 
-**Rebuild after code changes:**
+#### Production Mode
+
+For production deployment, use the production configuration:
+
 ```bash
-docker-compose up -d --build
+# Set API base URL for frontend build (optional)
+export VITE_API_BASE=http://your-api-domain.com:8002
+
+# Build and start production services
+docker-compose -f docker-compose.prod.yml up -d --build
 ```
 
+**Features:**
+- Frontend built as static files, served by nginx
+- Backend runs without reload flag
+- No code mounting (code is baked into images)
+- Optimized for production performance
+
 **Access services:**
-- Frontend: http://localhost:5173
+- Frontend: http://localhost:80 (nginx)
 - Backend API: http://localhost:8002
 - API Docs: http://localhost:8002/docs
 - MongoDB: `mongodb://localhost:27017`
@@ -138,6 +158,8 @@ All data is persisted in the `./data/` directory:
 - Job outputs: `./data/jobs/`
 - Upload cache: `./data/uploads/`
 - MongoDB logs: `./data/mongodb.log`
+
+**For detailed deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md)**
 
 ### Docker (Single Container - Experimental)
 
