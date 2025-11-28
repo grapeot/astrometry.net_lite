@@ -45,7 +45,6 @@ MongoDB Admin TUI - Terminal User Interface for MongoDB management
     - 建议在生产环境中谨慎使用这些功能
 """
 
-import shutil
 import sys
 from pathlib import Path
 from typing import Any, Optional
@@ -75,7 +74,6 @@ from textual.widgets import (
 )
 
 from core.config import settings
-from domain.enums import ArtifactType
 from services.mongo import create_mongo_client, get_database
 
 
@@ -418,7 +416,7 @@ class DocumentDetail(TextArea):
                 ascii_lines.append(line)
             
             return "\n".join(ascii_lines)
-        except Exception as e:
+        except Exception:
             return None
 
     def _generate_wcs_preview(self, wcs_path: Path) -> Optional[str]:
@@ -465,7 +463,7 @@ class DocumentDetail(TextArea):
                     f"图像尺寸: {naxis1} x {naxis2} 像素",
                     f"像素比例: {pixscale_arcsec:.3f} arcsec/pixel",
                     "",
-                    f"中心坐标:",
+                    "中心坐标:",
                     f"  RA:  {center.ra.to_string(unit='hour', precision=2)}  ({center.ra.deg:.6f}°)",
                     f"  Dec: {center.dec.to_string(unit='deg', precision=2)}  ({center.dec.deg:.6f}°)",
                     "",
