@@ -135,9 +135,13 @@ docker-compose up -d
 ```
 
 This will start:
-- **MongoDB** on port `27017` (data persisted in `./data/mongodb/`)
+- **MongoDB** (internal only, accessible via Docker network at `mongodb:27017`)
 - **Backend API** on port `8002` (http://localhost:8002) with hot-reload
 - **Frontend** on port `5173` (http://localhost:5173) with Vite dev server
+
+**Note:** MongoDB is not exposed externally for security. To access MongoDB:
+- From Docker containers: use `mongodb:27017`
+- To run MongoDB Admin TUI: `./scripts/run_tui_in_docker.sh`
 
 **Features:**
 - Code is mounted into containers for live editing
@@ -179,7 +183,8 @@ docker-compose -f docker-compose.prod.yml up -d --build
 - Frontend: http://localhost:80 (nginx)
 - Backend API: http://localhost:8002
 - API Docs: http://localhost:8002/docs
-- MongoDB: `mongodb://localhost:27017`
+- MongoDB: Internal only (accessible via Docker network at `mongodb:27017`)
+  - To run MongoDB Admin TUI: `./scripts/run_tui_in_docker.sh`
 
 **Data persistence:**
 All data is persisted in the `./data/` directory:

@@ -4,8 +4,9 @@ services:
   mongodb:
     image: mongo:8
     container_name: astrometry-mongodb-prod
-    ports:
-      - "27017:27017"
+    # MongoDB port not exposed externally for security
+    # Access MongoDB from within Docker network using: mongodb:27017
+    # To run TUI: ./scripts/run_tui_in_docker.sh
     volumes:
       - ./data/mongodb:/data/db
     environment:
