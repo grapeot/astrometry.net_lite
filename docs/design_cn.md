@@ -14,6 +14,8 @@ Astrometry Lite 的答案是：
 - **MongoDB** 实现灵活的文档存储
 - **文件系统状态** 支持实时任务追踪
 
+**Live Demo:** [https://astrometry.yage.ai/](https://astrometry.yage.ai/)
+
 ## 新旧实现对比
 
 ### 原版实现（net/ 目录）

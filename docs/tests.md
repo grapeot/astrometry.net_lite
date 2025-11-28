@@ -2,6 +2,8 @@
 
 This document provides an overview of the test suite for the Astrometry.net Lite project, covering both backend (Python/FastAPI) and frontend (React/TypeScript) testing.
 
+**Live Demo:** [https://astrometry.yage.ai/](https://astrometry.yage.ai/)
+
 ## Test Structure
 
 ```

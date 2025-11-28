@@ -14,6 +14,8 @@ Astrometry Lite answers this with:
 - **MongoDB** for flexible document storage
 - **Real-time job tracking** via file system state
 
+**Live Demo:** [https://astrometry.yage.ai/](https://astrometry.yage.ai/)
+
 ## Original vs Modern Implementation
 
 ### The Original (net/ directory)
