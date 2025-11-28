@@ -65,7 +65,7 @@ class TestLoginEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "error"
-        assert "bad apikey" in data["errormessage"]
+        assert "Invalid API key" in data["errormessage"]
 
     def test_login_missing_apikey(
         self, client: TestClient, mock_db_in_app: AsyncMock
@@ -80,7 +80,7 @@ class TestLoginEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "error"
-        assert "apikey" in data["errormessage"]
+        assert "API key" in data["errormessage"]
 
 
 class TestJobStatusEndpoint:
@@ -338,3 +338,169 @@ class TestUnsupportedFeatures:
         data = response.json()
         assert data["status"] == "error"
         assert "not supported" in data["errormessage"].lower()
+
+
+class TestUrlUploadEndpoint:
+    """Tests for POST /api/url_upload endpoint."""
+
+    @patch("api.routes.legacy.submission_service.validate_api_key")
+    @patch("api.routes.legacy.submission_service.create_submission")
+    @patch("httpx.AsyncClient")
+    def test_url_upload_success(
+        self,
+        mock_client_class: MagicMock,
+        mock_create_sub: AsyncMock,
+        mock_validate: AsyncMock,
+        client: TestClient,
+        mock_db_in_app: AsyncMock,
+    ):
+        """Test successful URL upload."""
+        from bson import ObjectId
+
+        # Mock httpx client
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = b"fake image data"
+        mock_response.raise_for_status = MagicMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client_class.return_value = mock_client
+
+        # Mock submission creation
+        mock_create_sub.return_value = {
+            "status": "success",
+            "subid": str(ObjectId()),
+            "job_id": 12345,
+        }
+
+        response = client.post(
+            "/api/url_upload",
+            data={"request-json": '{"apikey": "test_key", "url": "https://example.com/image.jpg"}'},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        mock_client.get.assert_called_once_with("https://example.com/image.jpg")
+
+    @patch("api.routes.legacy.submission_service.validate_api_key")
+    def test_url_upload_missing_session(
+        self,
+        mock_validate: AsyncMock,
+        client: TestClient,
+        mock_db_in_app: AsyncMock,
+    ):
+        """Test URL upload without session."""
+        response = client.post(
+            "/api/url_upload",
+            data={"request-json": '{"url": "https://example.com/image.jpg"}'},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "error"
+        assert "session" in data["errormessage"].lower() or "login" in data["errormessage"].lower()
+
+    @patch("api.routes.legacy.submission_service.validate_api_key")
+    def test_url_upload_missing_url(
+        self,
+        mock_validate: AsyncMock,
+        client: TestClient,
+        mock_db_in_app: AsyncMock,
+    ):
+        """Test URL upload without URL."""
+        mock_validate.return_value = True
+
+        response = client.post(
+            "/api/url_upload",
+            data={"request-json": '{"apikey": "test_key"}'},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "error"
+        assert "url" in data["errormessage"].lower()
+
+    @patch("api.routes.legacy.submission_service.validate_api_key")
+    @patch("httpx.AsyncClient")
+    def test_url_upload_http_error(
+        self,
+        mock_client_class: MagicMock,
+        mock_validate: AsyncMock,
+        client: TestClient,
+        mock_db_in_app: AsyncMock,
+    ):
+        """Test URL upload with HTTP error."""
+        import httpx
+
+        # Mock httpx client with error
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(side_effect=httpx.HTTPError("Connection error"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client_class.return_value = mock_client
+
+        mock_validate.return_value = True
+
+        response = client.post(
+            "/api/url_upload",
+            data={"request-json": '{"apikey": "test_key", "url": "https://example.com/image.jpg"}'},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "error"
+        assert "fetch" in data["errormessage"].lower() or "url" in data["errormessage"].lower()
+
+    @patch("api.routes.legacy.submission_service.validate_api_key")
+    @patch("api.routes.legacy.submission_service.create_submission")
+    @patch("httpx.AsyncClient")
+    def test_url_upload_sanitizes_filename(
+        self,
+        mock_client_class: MagicMock,
+        mock_create_sub: AsyncMock,
+        mock_validate: AsyncMock,
+        client: TestClient,
+        mock_db_in_app: AsyncMock,
+    ):
+        """Test that URL upload sanitizes filename from URL."""
+        from bson import ObjectId
+
+        # Mock httpx client
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = b"fake image data"
+        mock_response.raise_for_status = MagicMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client_class.return_value = mock_client
+
+        # Mock submission creation
+        mock_create_sub.return_value = {
+            "status": "success",
+            "subid": str(ObjectId()),
+            "job_id": 12345,
+        }
+
+        # URL with query parameters in filename
+        url = "https://example.com/image%20file.jpg?param=value&other=123"
+        response = client.post(
+            "/api/url_upload",
+            data={"request-json": f'{{"apikey": "test_key", "url": "{url}"}}'},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        # Verify that create_submission was called with sanitized filename
+        call_args = mock_create_sub.call_args
+        filename = call_args[1]["filename"]
+        assert "?" not in filename
+        assert " " not in filename  # URL decoded and sanitized

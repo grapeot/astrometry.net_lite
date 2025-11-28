@@ -29,11 +29,12 @@ type JobDetails = {
 }
 
 const SESSION_STORAGE_KEY = 'astrometry_session'
+const PUBLIC_API_KEY = 'public'
 
 function App() {
-  const [apiKey, setApiKey] = useState('')
+  const [apiKey, setApiKey] = useState(PUBLIC_API_KEY)
   const [session, setSession] = useState<string | null>(() => {
-    // 从 localStorage 恢复 session
+    // Restore session from localStorage
     return localStorage.getItem(SESSION_STORAGE_KEY)
   })
   const [jobs, setJobs] = useState<JobRow[]>([])
@@ -43,6 +44,25 @@ function App() {
   const [message, setMessage] = useState<string | null>(null)
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null)
   const [jobDetails, setJobDetails] = useState<Record<number, JobDetails>>({})
+  const [hasLoggedOut, setHasLoggedOut] = useState(false)
+
+  // Auto-login with public API key if no session exists (only on mount, not after logout)
+  useEffect(() => {
+    if (!session && !hasLoggedOut) {
+      const autoLogin = async () => {
+        try {
+          const res = await login(PUBLIC_API_KEY)
+          if (res.status === 'success' && res.session) {
+            setSession(res.session)
+            localStorage.setItem(SESSION_STORAGE_KEY, res.session)
+          }
+        } catch {
+          // Silently fail, user can manually login
+        }
+      }
+      void autoLogin()
+    }
+  }, [session, hasLoggedOut])
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -52,24 +72,26 @@ function App() {
       const res = await login(apiKey.trim())
       if (res.status === 'success' && res.session) {
         setSession(res.session)
-        // 保存到 localStorage
+        setHasLoggedOut(false) // Reset logout flag on successful login
+        // Save to localStorage
         localStorage.setItem(SESSION_STORAGE_KEY, res.session)
       } else {
-        setMessage(res.errormessage ?? '登录失败')
+        setMessage(res.errormessage ?? 'Login failed')
       }
     } catch {
-      setMessage('网络错误，稍后再试')
+      setMessage('Network error, please try again later')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleLogout = () => {
+  const handleChangeApiKey = () => {
     setSession(null)
-    setApiKey('')
+    setApiKey(PUBLIC_API_KEY) // Reset to default public key
     setJobs([])
     setJobDetails({})
-    // 清除 localStorage
+    setHasLoggedOut(true) // Mark that user explicitly changed API key
+    // Clear localStorage
     localStorage.removeItem(SESSION_STORAGE_KEY)
   }
 
@@ -85,7 +107,7 @@ function App() {
       }
       setJobs(rows)
     } catch {
-      setMessage('无法获取任务列表')
+        setMessage('Unable to load job list. Please refresh and try again.')
     } finally {
       setLoading(false)
     }
@@ -100,7 +122,7 @@ function App() {
   const handleUpload = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!session || !selectedFile) {
-      setMessage('请选择文件并先登录')
+      setMessage('Please select a file and login first')
       return
     }
     setUploading(true)
@@ -110,12 +132,12 @@ function App() {
       if (res.status === 'success') {
         setSelectedFile(null)
         await refreshJobs()
-        setMessage(`上传成功，Submission ${res.subid}`)
+        setMessage(`Upload successful, Submission ${res.subid}`)
       } else {
-        setMessage(res.errormessage ?? '上传失败')
+        setMessage(res.errormessage ?? 'Upload failed')
       }
     } catch {
-      setMessage('上传出错')
+        setMessage('Upload failed. Please check your file and try again.')
     } finally {
       setUploading(false)
     }
@@ -155,25 +177,28 @@ function App() {
   return (
     <div className="layout">
       <header>
-        <h1>Astrometry Lite 控制台</h1>
-        <p>使用 API key 登录，上传图片并跟踪 Job 状态。</p>
+        <h1>Astrometry Lite Console</h1>
+        <p>Login with API key, upload images and track Job status.</p>
       </header>
 
       {!session && (
         <section className="panel">
-          <h2>登录</h2>
+          <h2>Login</h2>
+          <p style={{ color: '#9ca3af', marginBottom: '1rem' }}>
+            Using public API key. You can enter a custom API key if needed.
+          </p>
           <form onSubmit={handleLogin} className="form">
             <label>
               API Key
               <input
-                type="password"
+                type="text"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="粘贴在此"
+                placeholder="public (default)"
               />
             </label>
             <button type="submit" disabled={loading || !apiKey.trim()}>
-              {loading ? '登录中…' : '登录'}
+              {loading ? 'Logging in...' : 'Login'}
             </button>
           </form>
         </section>
@@ -183,9 +208,9 @@ function App() {
         <>
           <section className="panel">
             <div className="panel-header">
-              <h2>已登录</h2>
-              <button onClick={handleLogout} style={{ background: 'rgba(248, 113, 113, 0.2)', color: '#f87171' }}>
-                登出
+              <h2>Logged In</h2>
+              <button onClick={handleChangeApiKey} style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#3b82f6' }}>
+                Change API Key
               </button>
             </div>
             <p style={{ fontSize: '0.9rem', color: '#999', marginTop: '0.5rem' }}>
@@ -194,7 +219,7 @@ function App() {
           </section>
 
           <section className="panel">
-            <h2>上传图像</h2>
+            <h2>Upload Image</h2>
             <form onSubmit={handleUpload} className="form">
               <input
                 type="file"
@@ -202,28 +227,28 @@ function App() {
                 onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
               />
               <button type="submit" disabled={!selectedFile || uploading}>
-                {uploading ? '上传中…' : '上传并提交'}
+                {uploading ? 'Uploading...' : 'Upload and Submit'}
               </button>
             </form>
           </section>
 
           <section className="panel">
             <div className="panel-header">
-              <h2>Job 列表</h2>
+              <h2>Job List</h2>
               <button onClick={() => refreshJobs()} disabled={loading}>
-                {loading ? '刷新中…' : '刷新'}
+                {loading ? 'Refreshing...' : 'Refresh'}
               </button>
             </div>
             {jobs.length === 0 ? (
-              <p>暂无 job，可先上传一张图像。</p>
+              <p>No jobs yet, please upload an image first.</p>
             ) : (
               <table>
                 <thead>
                   <tr>
                     <th>ID</th>
-                    <th>状态</th>
-                    <th>文件</th>
-                    <th>下载</th>
+                    <th>Status</th>
+                    <th>File</th>
+                    <th>Download</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -270,12 +295,12 @@ function App() {
                           <tr>
                             <td colSpan={4} style={{ padding: '1.5rem', backgroundColor: 'rgba(0, 0, 0, 0.2)' }}>
                               {details?.loading ? (
-                                <div>加载中...</div>
+                                <div>Loading...</div>
                               ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                                   {details?.calibration && !details.calibration.error && (
                                     <div>
-                                      <h3 style={{ marginTop: 0, marginBottom: '0.75rem', fontSize: '1.1rem' }}>校准数据</h3>
+                                      <h3 style={{ marginTop: 0, marginBottom: '0.75rem', fontSize: '1.1rem' }}>Calibration Data</h3>
                                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.5rem', fontSize: '0.9rem' }}>
                                         {details.calibration.ra !== undefined && (
                                           <div><strong>RA:</strong> {details.calibration.ra.toFixed(6)}°</div>
@@ -284,23 +309,23 @@ function App() {
                                           <div><strong>Dec:</strong> {details.calibration.dec.toFixed(6)}°</div>
                                         )}
                                         {details.calibration.pixscale !== undefined && (
-                                          <div><strong>像素尺度:</strong> {details.calibration.pixscale.toFixed(4)} arcsec/pixel</div>
+                                          <div><strong>Pixel Scale:</strong> {details.calibration.pixscale.toFixed(4)} arcsec/pixel</div>
                                         )}
                                         {details.calibration.orientation !== undefined && (
-                                          <div><strong>方向角:</strong> {details.calibration.orientation.toFixed(2)}°</div>
+                                          <div><strong>Orientation:</strong> {details.calibration.orientation.toFixed(2)}°</div>
                                         )}
                                         {details.calibration.parity !== undefined && (
-                                          <div><strong>奇偶性:</strong> {details.calibration.parity > 0 ? '正' : '负'}</div>
+                                          <div><strong>Parity:</strong> {details.calibration.parity > 0 ? 'Positive' : 'Negative'}</div>
                                         )}
                                         {details.calibration.radius !== undefined && (
-                                          <div><strong>半径:</strong> {details.calibration.radius.toFixed(4)}°</div>
+                                          <div><strong>Radius:</strong> {details.calibration.radius.toFixed(4)}°</div>
                                         )}
                                       </div>
                                     </div>
                                   )}
                                   {details?.objects && details.objects.objects_in_field && details.objects.objects_in_field.length > 0 && (
                                     <div>
-                                      <h3 style={{ marginTop: 0, marginBottom: '0.75rem', fontSize: '1.1rem' }}>视场中的天体</h3>
+                                      <h3 style={{ marginTop: 0, marginBottom: '0.75rem', fontSize: '1.1rem' }}>Objects in Field</h3>
                                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                                         {details.objects.objects_in_field.map((obj, idx) => (
                                           <span key={idx} style={{ padding: '0.25rem 0.5rem', background: 'rgba(91, 213, 249, 0.15)', borderRadius: '4px', fontSize: '0.9rem' }}>
@@ -312,7 +337,7 @@ function App() {
                                   )}
                                   {details?.annotations && details.annotations.annotations && details.annotations.annotations.length > 0 && (
                                     <div>
-                                      <h3 style={{ marginTop: 0, marginBottom: '0.75rem', fontSize: '1.1rem' }}>注释</h3>
+                                      <h3 style={{ marginTop: 0, marginBottom: '0.75rem', fontSize: '1.1rem' }}>Annotations</h3>
                                       <ul style={{ margin: 0, paddingLeft: '1.5rem', fontSize: '0.9rem' }}>
                                         {details.annotations.annotations.map((ann, idx) => (
                                           <li key={idx}>{ann.text || JSON.stringify(ann)}</li>
@@ -321,7 +346,7 @@ function App() {
                                     </div>
                                   )}
                                   {details && !details.loading && !details.calibration && !details.objects && !details.annotations && (
-                                    <div style={{ color: '#999', fontSize: '0.9rem' }}>暂无详细信息</div>
+                                    <div style={{ color: '#999', fontSize: '0.9rem' }}>No details available</div>
                                   )}
                                 </div>
                               )}

@@ -156,7 +156,7 @@ export const handlers = [
 
     return HttpResponse.json({
       status: 'error',
-      errormessage: 'bad apikey',
+      errormessage: 'Invalid API key. Please check your API key and try again.',
     })
   }),
 

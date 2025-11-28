@@ -49,23 +49,29 @@ The original astrometry.net implementation (still preserved in `net/`) showcases
 | **Frontend** | React + Vite + TypeScript (SPA) |
 | **API Style** | OpenAPI/Swagger, proper JSON, Pydantic validation |
 | **Python** | Python 3.12+ only |
-| **Architecture** | Microservices: separate API, Worker, Frontend |
+| **Architecture** | Microservices: separate API, Worker, Frontend (Dev)<br>Unified: Backend serves Frontend (Prod) |
 | **Upload Handling** | FastAPI native multipart support |
 | **Authentication** | Simple API key (single-tenant) |
+| **Static Files** | FastAPI StaticFiles + SPA routing support |
+| **Docker** | Multi-stage build, frontend build integrated into backend image |
 
 ## Architecture
 
+### Development Environment
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     Frontend (React)                         │
+│                     Frontend (React + Vite Dev Server)      │
+│  Port: 5173                                                  │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
 │  │  JobGrid    │  │ JobDetail   │  │  Console (Auth)     │  │
 │  │  (public)   │  │ (public)    │  │  (upload/manage)    │  │
 │  └─────────────┘  └─────────────┘  └─────────────────────┘  │
 └────────────────────────────┬────────────────────────────────┘
-                             │ HTTP
+                             │ HTTP (CORS)
 ┌────────────────────────────▼────────────────────────────────┐
 │                    FastAPI Backend                           │
+│  Port: 8002                                                  │
 │  ┌────────────────┐  ┌────────────────┐  ┌──────────────┐  │
 │  │ Legacy API     │  │ Frontend API   │  │ File Router  │  │
 │  │ /api/*         │  │ /api/jobs/*    │  │ /wcs_file/*  │  │
@@ -81,6 +87,39 @@ The original astrometry.net implementation (still preserved in `net/`) showcases
 └─────────────────┘  └─────────────────┘  └─────────────────┘
 ```
 
+### Production Environment (Simplified)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    FastAPI Backend (Unified Service)         │
+│  Port: 8002                                                  │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  Static File Serving (frontend/dist)                    │ │
+│  │  - /assets/* (JS, CSS)                                  │ │
+│  │  - / (SPA routing, returns index.html)                  │ │
+│  └────────────────────────────────────────────────────────┘ │
+│  ┌────────────────┐  ┌────────────────┐  ┌──────────────┐  │
+│  │ Legacy API     │  │ Frontend API   │  │ File Router  │  │
+│  │ /api/*         │  │ /api/jobs/*    │  │ /wcs_file/*  │  │
+│  └────────────────┘  └────────────────┘  └──────────────┘  │
+└───────┬─────────────────────┬───────────────────┬───────────┘
+        │                     │                   │
+┌───────▼─────────┐  ┌────────▼────────┐  ┌──────▼──────────┐
+│    MongoDB      │  │  File System    │  │   Worker        │
+│  - api_keys     │  │  - uploads/     │  │  - solve-field  │
+│  - submissions  │  │  - jobs/{id}/   │  │  - annotator    │
+│  - jobs         │  │    - wcs.fits   │  │                 │
+│  - queue        │  │    - status.json│  │                 │
+└─────────────────┘  └─────────────────┘  └─────────────────┘
+```
+
+**Production Environment Features:**
+- Backend container includes frontend build artifacts (`frontend/dist`)
+- FastAPI automatically serves static files and SPA routing
+- Frontend uses relative path `/api` to call backend API
+- Single port (8002) provides complete service
+- No separate nginx or frontend container needed
+
 ## Technology Stack
 
 | Component | Technology |
@@ -91,6 +130,8 @@ The original astrometry.net implementation (still preserved in `net/`) showcases
 | Solver | Astrometry.net CLI (Homebrew) |
 | Frontend | React 19 + Vite 7 + TypeScript |
 | Image Processing | Pillow, Astropy |
+| Static File Serving | FastAPI StaticFiles (Production) |
+| Deployment | Docker + Docker Compose (Multi-stage build) |
 
 ## Data Model
 
@@ -238,6 +279,8 @@ File System Stage: started ──► solving ──► calibrating ──► ann
 
 ## Quick Start
 
+### Development Environment
+
 ```bash
 # 1. Start MongoDB
 ./scripts/start_mongodb.sh
@@ -251,13 +294,45 @@ PYTHONPATH=. python scripts/seed_api_key.py test-key-12345 test@example.com
 # 4. Start Worker
 ./scripts/start_worker.sh
 
-# 5. Start Frontend
+# 5. Start Frontend (Dev Server)
 cd frontend && npm run dev
 ```
 
 **Access Points:**
 - API: http://127.0.0.1:8002
 - Frontend: http://localhost:5173
+
+### Production Environment
+
+#### Option 1: Using Docker Compose (Recommended)
+
+```bash
+# Build and start all services (including frontend build)
+./scripts/start_backend_prod.sh
+
+# Or manually
+docker-compose -f docker-compose.prod.yml up -d --build
+```
+
+**Access Point:**
+- Unified entry: http://localhost:8002 (Frontend + API)
+
+#### Option 2: Local Deployment
+
+```bash
+# 1. Build frontend
+cd frontend
+VITE_API_BASE=/api npm run build
+
+# 2. Start backend (automatically serves frontend)
+./scripts/start_backend.sh
+
+# 3. Start Worker
+./scripts/start_worker.sh
+```
+
+**Access Point:**
+- Unified entry: http://127.0.0.1:8002 (Frontend + API)
 
 ## Configuration
 
@@ -268,6 +343,7 @@ See `.env` file for all configuration options including MongoDB URI, CLI paths, 
 ```
 astrometry.net_web_server/
 ├── api/                 # FastAPI backend
+│   ├── main.py          # Application entry (includes static file serving)
 │   ├── routes/
 │   │   ├── legacy.py    # Original API compatibility
 │   │   └── frontend.py  # Public frontend API
@@ -277,12 +353,24 @@ astrometry.net_web_server/
 │   └── annotator/       # Image annotation
 ├── workers/             # Background processing
 ├── frontend/            # React application
-│   └── src/
-│       ├── pages/       # JobGrid, JobDetail
-│       └── hooks/       # useJobList, useJobDetail
+│   ├── src/
+│   │   ├── pages/       # JobGrid, JobDetail
+│   │   └── hooks/       # useJobList, useJobDetail
+│   └── dist/            # Build artifacts (production)
 ├── domain/              # Data models
+├── scripts/             # Utility scripts
+│   └── start_backend_prod.sh  # Production startup script
+├── Dockerfile           # Multi-stage build (includes frontend build)
+├── docker-compose.prod.yml  # Production configuration
 └── docs/                # Documentation
 ```
+
+**Production Build Notes:**
+- `Dockerfile` uses multi-stage build:
+  1. `base` stage: Build Python backend
+  2. `frontend-builder` stage: Build frontend (with `VITE_API_BASE=/api`)
+  3. Final stage: Merge backend and frontend build artifacts into `frontend/dist`
+- Backend container includes `frontend/dist`, FastAPI automatically serves static files
 
 ## Unsupported Features
 

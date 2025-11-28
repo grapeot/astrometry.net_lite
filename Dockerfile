@@ -7,10 +7,18 @@ ENV PYTHONUNBUFFERED=1 \
 # Install system dependencies and astrometry.net CLI tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     astrometry.net \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Verify astrometry.net tools are installed and accessible
+RUN solve-field --help > /dev/null 2>&1 || (echo "ERROR: solve-field not found after installation" && exit 1) && \
+    echo "✓ astrometry.net tools verified"
+
 # Install uv
-RUN pip install --no-cache-dir uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    export PATH="/root/.local/bin:$PATH" && \
+    uv --version
+ENV PATH="/root/.local/bin:$PATH"
 
 # Install Python dependencies
 COPY pyproject.toml README.md ./
@@ -33,6 +41,22 @@ COPY services ./services
 COPY workers ./workers
 COPY docs ./docs
 COPY scripts ./scripts
+
+# Build frontend (multi-stage build)
+FROM node:20-slim AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci
+COPY frontend/ .
+# Build with relative API path for backend serving
+ARG VITE_API_BASE=/api
+ENV VITE_API_BASE=${VITE_API_BASE:-/api}
+RUN npm run build
+
+# Final stage: combine backend and frontend
+FROM base
+# Copy frontend build to backend
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 # Set default astrometry.net binary paths (can be overridden via environment variables)
 # These binaries are installed via apt-get in /usr/bin/

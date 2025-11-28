@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,42 @@ from services.storage import prepare_job_dir
 from services.wcs_utils import extract_calibration, parse_solver_stdout
 
 logger = logging.getLogger(__name__)
+
+
+def check_solve_field_available() -> tuple[bool, str]:
+    """
+    Check if solve-field tool is available.
+    
+    Returns:
+        Tuple of (is_available, error_message)
+        If available, error_message is empty string.
+        If not available, error_message contains helpful installation instructions.
+    """
+    solve_field_path = Path(settings.solve_field_bin)
+    
+    # Check if file exists
+    if not solve_field_path.exists():
+        # Try to find it in PATH
+        found_in_path = shutil.which("solve-field")
+        if found_in_path:
+            return True, ""
+        
+        # Generate helpful error message
+        error_msg = (
+            f"The astrometry solver tool 'solve-field' is not found at {settings.solve_field_bin}.\n\n"
+            "Please install astrometry.net:\n"
+            "  - macOS: brew install astrometry-net\n"
+            "  - Linux: apt-get install astrometry.net\n"
+            "  - Or set SOLVE_FIELD_BIN environment variable to point to the correct path"
+        )
+        return False, error_msg
+    
+    # Check if file is executable
+    if not solve_field_path.is_file():
+        error_msg = f"Path {settings.solve_field_bin} exists but is not a file"
+        return False, error_msg
+    
+    return True, ""
 
 
 def _build_cli_args(source_path: Path, job_dir: Path, upload_args: dict[str, Any]) -> list[str]:
@@ -90,6 +127,20 @@ async def solve_job(db: AsyncIOMotorDatabase, job_id: int, payload: dict[str, An
     source_path = Path(payload["stored_path"])
     job_dir = prepare_job_dir(job_id)
     state = StateManager(job_dir)
+    
+    # Check if solve-field tool is available before starting
+    is_available, error_msg = check_solve_field_available()
+    if not is_available:
+        logger.error("solve-field tool not available for job %s: %s", job_id, error_msg)
+        state.update_stage(ProcessingStage.FAILED, "Astrometry solver tool not found", error=error_msg)
+        await job_service.update_job_status(
+            db,
+            job_id,
+            JobStatus.failure,
+            failure_reason=error_msg,
+        )
+        raise RuntimeError(error_msg)
+    
     cli_args = _build_cli_args(source_path, job_dir, payload.get("upload_args", {}))
 
     # Initialize file system state
@@ -99,11 +150,30 @@ async def solve_job(db: AsyncIOMotorDatabase, job_id: int, payload: dict[str, An
     state.update_stage(ProcessingStage.SOLVING, "Running solve-field...")
 
     # Run solve-field with streaming output to log file
-    proc = await asyncio.create_subprocess_exec(
-        *cli_args,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,  # Merge stderr into stdout
-    )
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cli_args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,  # Merge stderr into stdout
+        )
+    except FileNotFoundError as e:
+        # Handle case where solve-field is not found (even after check)
+        error_msg = (
+            f"Failed to execute solve-field: {e}\n\n"
+            "The astrometry solver tool may not be installed or not in PATH.\n"
+            "Please install astrometry.net:\n"
+            "  - macOS: brew install astrometry-net\n"
+            "  - Linux: apt-get install astrometry.net"
+        )
+        logger.error("solve-field execution failed for job %s: %s", job_id, error_msg)
+        state.update_stage(ProcessingStage.FAILED, "Astrometry solver tool not found", error=error_msg)
+        await job_service.update_job_status(
+            db,
+            job_id,
+            JobStatus.failure,
+            failure_reason=error_msg,
+        )
+        raise RuntimeError(error_msg) from e
 
     # Stream output to log file
     stdout_lines = []

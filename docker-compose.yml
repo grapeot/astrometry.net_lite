@@ -8,8 +8,9 @@ services:
   mongodb:
     image: mongo:8
     container_name: astrometry-mongodb
-    ports:
-      - "27017:27017"
+    # MongoDB port not exposed externally for security
+    # Access MongoDB from within Docker network using: mongodb:27017
+    # To run TUI: ./scripts/run_tui_in_docker.sh
     volumes:
       - ./data/mongodb:/data/db
     environment:
@@ -25,7 +26,7 @@ services:
       dockerfile: Dockerfile
     container_name: astrometry-backend
     ports:
-      - "8020:8000"
+      - "${API_PORT:-8020}:8000"
     volumes:
       - ./data:/app/data
       - ./astrometry_indexes:/app/astrometry_indexes
@@ -39,6 +40,7 @@ services:
     environment:
       - MONGODB_URI=mongodb://mongodb:27017
       - MONGODB_DBNAME=astrometry_dev
+      - MONGODB_PORT=${MONGODB_PORT:-27017}
       - API_HOST=0.0.0.0
       - API_PORT=8000
     depends_on:
@@ -56,18 +58,44 @@ services:
       dockerfile: Dockerfile
     container_name: astrometry-frontend
     ports:
-      - "5173:5173"
+      - "${FRONTEND_PORT:-5173}:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - VITE_API_BASE=http://localhost:8020
+      - VITE_API_BASE=http://localhost:${API_PORT:-8020}/api
+      - VITE_FRONTEND_PORT=${FRONTEND_PORT:-5173}
+      - DOCKER_ENV=true
     depends_on:
       - backend
     networks:
       - astrometry-network
     restart: unless-stopped
     command: npm run dev -- --host 0.0.0.0
+
+  worker:
+    image: astrometry-backend:latest
+    container_name: astrometry-worker
+    volumes:
+      - ./data:/app/data
+      - ./astrometry_indexes:/app/astrometry_indexes
+      - ./catalogs:/app/catalogs
+      # 挂载代码目录以实现热重载（开发模式）
+      - ./api:/app/api
+      - ./core:/app/core
+      - ./domain:/app/domain
+      - ./services:/app/services
+      - ./workers:/app/workers
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DBNAME=astrometry_dev
+    depends_on:
+      - mongodb
+      - backend
+    networks:
+      - astrometry-network
+    restart: unless-stopped
+    command: python -m workers.run_worker
 
 networks:
   astrometry-network:

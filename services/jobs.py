@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -35,7 +35,7 @@ async def update_job_status(
         }
     }
     if status in {JobStatus.success, JobStatus.failure}:
-        update["$set"]["finished_at"] = datetime.utcnow()
+        update["$set"]["finished_at"] = datetime.now(UTC)
     else:
         update.setdefault("$unset", {})["finished_at"] = ""
     if failure_reason:
@@ -54,7 +54,7 @@ async def update_job_status(
 async def mark_job_started(db: AsyncIOMotorDatabase, job_id: int) -> None:
     await db[JOBS_COLLECTION].update_one(
         {"job_id": job_id},
-        {"$set": {"status": JobStatus.solving.value, "started_at": datetime.utcnow()}},
+        {"$set": {"status": JobStatus.solving.value, "started_at": datetime.now(UTC)}},
     )
 
 

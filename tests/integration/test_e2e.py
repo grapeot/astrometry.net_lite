@@ -18,7 +18,7 @@ from client import Client
 
 # Configuration
 API_URL = "http://127.0.0.1:8002/api/"
-API_KEY = "1"
+API_KEY = "public"
 TEST_IMAGE_URL = "https://www.astrovox.gr/uploads/monthly_2018_11/large.cdd0f09bb000b7fb70d7a928861cfe74.jpg.9c50a409a68626591c33b3fee25ec522.jpg"
 TIMEOUT = 300  # 5 minutes
 
@@ -105,7 +105,7 @@ def test_upload(client: Client, image_path: Path) -> dict:
 def test_url_upload(client: Client, image_url: str) -> dict:
     """Test uploading an image from URL."""
     print("\n" + "=" * 60)
-    print(f"Test 2: Upload image from URL")
+    print("Test 2: Upload image from URL")
     print("=" * 60)
     print(f"URL: {image_url}")
     print("=" * 60)

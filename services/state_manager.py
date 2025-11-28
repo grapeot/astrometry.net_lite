@@ -7,7 +7,7 @@ authoritative state source.
 """
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Optional
 
@@ -72,7 +72,7 @@ class StateManager:
             if current_stage not in [ProcessingStage.FAILED, ProcessingStage.COMPLETED]:
                 steps_completed.append(current_stage)
 
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(UTC).isoformat() + "Z"
         new_status = {
             "job_id": current.get("job_id", self._extract_job_id()),
             "stage": stage,

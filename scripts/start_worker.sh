@@ -35,7 +35,13 @@ if [ -f "$PID_FILE" ]; then
 fi
 
 echo "Starting worker (logs → $LOG_FILE)"
-nohup python -m workers.run_worker >>"$LOG_FILE" 2>&1 &
+# Use python from venv if available, otherwise use system python3
+PYTHON_CMD="python3"
+if [ -d "$PROJECT_ROOT/venv" ]; then
+  PYTHON_CMD="$PROJECT_ROOT/venv/bin/python"
+fi
+
+nohup "$PYTHON_CMD" -m workers.run_worker >>"$LOG_FILE" 2>&1 &
 PID=$!
 echo $PID > "$PID_FILE"
 echo "Worker PID $PID recorded in $PID_FILE"

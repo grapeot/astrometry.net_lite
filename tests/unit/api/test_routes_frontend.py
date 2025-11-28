@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -43,9 +43,9 @@ class TestListJobsEndpoint:
                 "job_id": 1,
                 "submission_id": ObjectId(),
                 "status": "success",
-                "created_at": datetime.utcnow(),
-                "started_at": datetime.utcnow(),
-                "finished_at": datetime.utcnow(),
+                "created_at": datetime.now(UTC),
+                "started_at": datetime.now(UTC),
+                "finished_at": datetime.now(UTC),
                 "artifacts": {"annotated": "path/to/annotated.jpg"},
                 "results": {},
                 "tags": [],
@@ -58,8 +58,8 @@ class TestListJobsEndpoint:
                 "job_id": 2,
                 "submission_id": ObjectId(),
                 "status": "solving",
-                "created_at": datetime.utcnow(),
-                "started_at": datetime.utcnow(),
+                "created_at": datetime.now(UTC),
+                "started_at": datetime.now(UTC),
                 "finished_at": None,
                 "artifacts": {},
                 "results": {},
@@ -206,9 +206,9 @@ class TestGetJobDetailEndpoint:
         mock_job = MagicMock(spec=Job)
         mock_job.job_id = 12345
         mock_job.status = JobStatus.success
-        mock_job.created_at = datetime.utcnow()
-        mock_job.started_at = datetime.utcnow()
-        mock_job.finished_at = datetime.utcnow()
+        mock_job.created_at = datetime.now(UTC)
+        mock_job.started_at = datetime.now(UTC)
+        mock_job.finished_at = datetime.now(UTC)
         mock_job.failure_reason = None
         mock_job.submission_id = ObjectId()
         mock_job.artifacts = {"wcs": "path/to/wcs.fits", "annotated": "path/to/annotated.jpg"}
@@ -260,8 +260,8 @@ class TestGetJobDetailEndpoint:
         mock_job = MagicMock(spec=Job)
         mock_job.job_id = 12345
         mock_job.status = JobStatus.solving
-        mock_job.created_at = datetime.utcnow()
-        mock_job.started_at = datetime.utcnow()
+        mock_job.created_at = datetime.now(UTC)
+        mock_job.started_at = datetime.now(UTC)
         mock_job.finished_at = None
         mock_job.failure_reason = None
         mock_job.submission_id = ObjectId()

@@ -36,23 +36,27 @@ export function JobCard({ job }: JobCardProps) {
     ? `${API_ROOT}${job.original_image_url}`
     : null;
   const imageUrl = annotatedUrl || originalUrl;
+  const isRunning = job.status === 'solving' || job.status === 'queued';
 
   return (
     <Link to={`/jobs/${job.job_id}`} className="job-card">
       <div className="job-card-image">
         {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={`Job ${job.job_id}`}
-            loading="lazy"
-            onError={(e) => {
-              // If annotated image fails, try original
-              const target = e.target as HTMLImageElement;
-              if (imageUrl === annotatedUrl && originalUrl) {
-                target.src = originalUrl;
-              }
-            }}
-          />
+          <>
+            <img
+              src={imageUrl}
+              alt={`Job ${job.job_id}`}
+              loading="lazy"
+              onError={(e) => {
+                // If annotated image fails, try original
+                const target = e.target as HTMLImageElement;
+                if (imageUrl === annotatedUrl && originalUrl) {
+                  target.src = originalUrl;
+                }
+              }}
+            />
+            {isRunning && <div className="image-overlay">Processing...</div>}
+          </>
         ) : (
           <div className="job-card-placeholder">No Image</div>
         )}

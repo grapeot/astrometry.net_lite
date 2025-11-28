@@ -1,12 +1,13 @@
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { uploadFile, uploadFromUrl, login, type UploadResponse } from '../api';
 
 const SESSION_STORAGE_KEY = 'astrometry_session';
+const PUBLIC_API_KEY = 'public';
 
 export function NewJob() {
   const navigate = useNavigate();
-  const [apiKey, setApiKey] = useState('');
+  const [apiKey, setApiKey] = useState(PUBLIC_API_KEY);
   const [session, setSession] = useState<string | null>(() => {
     return localStorage.getItem(SESSION_STORAGE_KEY);
   });
@@ -15,6 +16,25 @@ export function NewJob() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasLoggedOut, setHasLoggedOut] = useState(false);
+
+  // Auto-login with public API key if no session exists (only on mount, not after logout)
+  useEffect(() => {
+    if (!session && !hasLoggedOut) {
+      const autoLogin = async () => {
+        try {
+          const res = await login(PUBLIC_API_KEY);
+          if (res.status === 'success' && res.session) {
+            setSession(res.session);
+            localStorage.setItem(SESSION_STORAGE_KEY, res.session);
+          }
+        } catch {
+          // Silently fail, user can manually login
+        }
+      };
+      void autoLogin();
+    }
+  }, [session, hasLoggedOut]);
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
@@ -24,12 +44,13 @@ export function NewJob() {
       const res = await login(apiKey.trim());
       if (res.status === 'success' && res.session) {
         setSession(res.session);
+        setHasLoggedOut(false); // Reset logout flag on successful login
         localStorage.setItem(SESSION_STORAGE_KEY, res.session);
       } else {
-        setError(res.errormessage ?? '登录失败');
+        setError(res.errormessage ?? 'Login failed');
       }
-    } catch (err) {
-      setError('网络错误，稍后再试');
+    } catch {
+      setError('Network error, please try again later');
     } finally {
       setLoading(false);
     }
@@ -38,7 +59,7 @@ export function NewJob() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!session) {
-      setError('请先登录');
+      setError('Please login first');
       return;
     }
 
@@ -49,14 +70,14 @@ export function NewJob() {
       let result: UploadResponse;
       if (uploadType === 'url') {
         if (!url.trim()) {
-          setError('请输入图片 URL');
+          setError('Please enter image URL');
           setLoading(false);
           return;
         }
         result = await uploadFromUrl(session, url.trim());
       } else {
         if (!selectedFile) {
-          setError('请选择文件');
+          setError('Please select a file');
           setLoading(false);
           return;
         }
@@ -64,13 +85,13 @@ export function NewJob() {
       }
 
       if (result.status === 'success' && result.job_id) {
-        // 跳转到 job status page
+        // Navigate to job status page
         navigate(`/jobs/${result.job_id}`);
       } else {
-        setError(result.errormessage ?? '提交失败');
+        setError(result.errormessage ?? 'Submission failed');
       }
-    } catch (err) {
-      setError('提交出错，请稍后再试');
+    } catch {
+        setError('Submission failed. Please check your image URL or file and try again.');
     } finally {
       setLoading(false);
     }
@@ -85,18 +106,18 @@ export function NewJob() {
 
       {!session ? (
         <div className="panel">
-          <h2>登录</h2>
+          <h2>Login</h2>
           <p style={{ color: '#9ca3af', marginBottom: '1rem' }}>
-            请使用 API key 登录以提交新的解析任务
+            Using public API key. You can enter a custom API key if needed.
           </p>
           <form onSubmit={handleLogin} className="form">
             <label>
               API Key
               <input
-                type="password"
+                type="text"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="粘贴 API key"
+                placeholder="public (default)"
                 style={{
                   padding: '0.8rem 1rem',
                   borderRadius: '10px',
@@ -109,7 +130,7 @@ export function NewJob() {
               />
             </label>
             <button type="submit" disabled={loading || !apiKey.trim()}>
-              {loading ? '登录中…' : '登录'}
+              {loading ? 'Logging in...' : 'Login'}
             </button>
           </form>
           {error && <div className="error-message" style={{ marginTop: '1rem' }}>{error}</div>}
@@ -117,21 +138,22 @@ export function NewJob() {
       ) : (
         <div className="panel">
           <div className="panel-header">
-            <h2>提交新任务</h2>
+            <h2>Submit New Job</h2>
             <button
               onClick={() => {
                 setSession(null);
-                setApiKey('');
+                setApiKey(PUBLIC_API_KEY);
+                setHasLoggedOut(true);
                 localStorage.removeItem(SESSION_STORAGE_KEY);
               }}
               style={{
-                background: 'rgba(248, 113, 113, 0.2)',
-                color: '#f87171',
+                background: 'rgba(59, 130, 246, 0.2)',
+                color: '#3b82f6',
                 padding: '0.5rem 1rem',
                 fontSize: '0.9rem',
               }}
             >
-              登出
+              Change API Key
             </button>
           </div>
           <p style={{ color: '#9ca3af', marginBottom: '1rem' }}>
@@ -147,7 +169,7 @@ export function NewJob() {
                   onChange={() => setUploadType('url')}
                   style={{ width: 'auto' }}
                 />
-                <span>从 URL 上传</span>
+                <span>Upload from URL</span>
               </label>
               <label style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                 <input
@@ -156,13 +178,13 @@ export function NewJob() {
                   onChange={() => setUploadType('file')}
                   style={{ width: 'auto' }}
                 />
-                <span>上传文件</span>
+                <span>Upload file</span>
               </label>
             </div>
 
             {uploadType === 'url' ? (
               <label>
-                图片 URL
+                Image URL
                 <input
                   type="url"
                   value={url}
@@ -181,7 +203,7 @@ export function NewJob() {
               </label>
             ) : (
               <label>
-                选择文件
+                Select file
                 <input
                   type="file"
                   accept=".fits,.fit,.fts,.jpg,.jpeg,.png"
@@ -198,14 +220,14 @@ export function NewJob() {
                 />
                 {selectedFile && (
                   <p style={{ marginTop: '0.5rem', color: '#9ca3af', fontSize: '0.9rem' }}>
-                    已选择: {selectedFile.name}
+                    Selected: {selectedFile.name}
                   </p>
                 )}
               </label>
             )}
 
             <button type="submit" disabled={loading || (uploadType === 'url' && !url.trim()) || (uploadType === 'file' && !selectedFile)}>
-              {loading ? '提交中…' : '提交任务'}
+              {loading ? 'Submitting...' : 'Submit Job'}
             </button>
           </form>
 

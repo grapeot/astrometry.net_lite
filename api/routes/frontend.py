@@ -241,14 +241,14 @@ async def get_original_file(
     # Get submission to find original file
     submission = await submission_service.get_submission(db, str(job.submission_id))
     if not submission:
-        raise HTTPException(status_code=404, detail="Submission not found")
+        raise HTTPException(status_code=404, detail="Submission not found. Please check the job ID.")
 
     stored_path = Path(submission.stored_path)
     if not stored_path.is_absolute():
         stored_path = stored_path.resolve()
 
     if not stored_path.exists():
-        raise HTTPException(status_code=404, detail="Original file not found")
+        raise HTTPException(status_code=404, detail="Original image file not found. It may have been deleted.")
 
     # Determine media type based on file extension
     suffix = stored_path.suffix.lower()
