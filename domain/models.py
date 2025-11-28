@@ -72,11 +72,14 @@ class Artifact(MongoModel):
 class QueueMessage(MongoModel):
     job_id: int
     payload: dict[str, Any]
+    priority: int = 50  # Lower number = higher priority
+    api_key: Optional[str] = None  # Associated API key for priority tracking
     locked_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     failed_at: Optional[datetime] = None
     attempts: int = 0
     failure_reason: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
     @property
     def is_locked(self) -> bool:

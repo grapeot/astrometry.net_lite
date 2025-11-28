@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime
 from typing import Any, Optional
@@ -13,13 +14,64 @@ from services.ids import get_next_sequence
 from services import queue as queue_service
 from services.storage import save_upload_file
 
+logger = logging.getLogger(__name__)
+
 SUBMISSIONS_COLLECTION = "submissions"
 JOBS_COLLECTION = "jobs"
 API_KEYS_COLLECTION = "api_keys"
 
+# Public API key constants
+PUBLIC_API_KEY = "public"
+PUBLIC_API_KEY_PRIORITY = 100  # Lowest priority
+PRIORITY_NORMAL = 50  # Default priority for regular users
+PRIORITY_HIGH = 0  # High priority for VIP users
+
+
+async def ensure_public_api_key(db: AsyncIOMotorDatabase) -> None:
+    """Ensure public API key exists in database. Called at application startup."""
+    existing = await db[API_KEYS_COLLECTION].find_one({"apikey": PUBLIC_API_KEY})
+    if not existing:
+        await db[API_KEYS_COLLECTION].insert_one({
+            "apikey": PUBLIC_API_KEY,
+            "priority": PUBLIC_API_KEY_PRIORITY,
+            "is_system": True,
+            "created_at": datetime.utcnow(),
+            "description": "Public API key for unauthenticated users",
+            "enabled": True,
+        })
+        logger.info("Created public API key")
+    else:
+        # Ensure priority is correct (in case it was modified)
+        await db[API_KEYS_COLLECTION].update_one(
+            {"apikey": PUBLIC_API_KEY},
+            {"$set": {"priority": PUBLIC_API_KEY_PRIORITY, "is_system": True}}
+        )
+
+
+async def get_api_key_priority(db: AsyncIOMotorDatabase, api_key: str) -> int:
+    """Get priority for an API key. Lower number = higher priority."""
+    if api_key == PUBLIC_API_KEY:
+        # Try to get from database first, fallback to constant
+        doc = await db[API_KEYS_COLLECTION].find_one({"apikey": PUBLIC_API_KEY})
+        if doc:
+            return doc.get("priority", PUBLIC_API_KEY_PRIORITY)
+        return PUBLIC_API_KEY_PRIORITY
+    
+    # For regular API keys, get priority from database
+    doc = await db[API_KEYS_COLLECTION].find_one({"apikey": api_key})
+    if doc:
+        return doc.get("priority", PRIORITY_NORMAL)
+    
+    # Default priority for unknown API keys
+    return PRIORITY_NORMAL
+
 
 async def validate_api_key(db: AsyncIOMotorDatabase, api_key: str) -> bool:
-    doc = await db[API_KEYS_COLLECTION].find_one({"apikey": api_key})
+    """Validate API key. Public API key is always valid."""
+    if api_key == PUBLIC_API_KEY:
+        return True
+    
+    doc = await db[API_KEYS_COLLECTION].find_one({"apikey": api_key, "enabled": {"$ne": False}})
     return doc is not None
 
 
@@ -56,7 +108,7 @@ async def create_submission(
         "stored_path": stored_path,
         "upload_args": upload_args,
     }
-    queue_msg = await queue_service.enqueue_job(db, job_id, payload)
+    queue_msg = await queue_service.enqueue_job(db, job_id, payload, api_key)
 
     return {
         "status": "success",

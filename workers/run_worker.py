@@ -66,6 +66,13 @@ async def process_loop():
     client = create_mongo_client()
     db = get_database(client)
     try:
+        # Initialize public API key at worker startup
+        try:
+            await submission_service.ensure_public_api_key(db)
+            logger.info("Public API key initialized")
+        except Exception as e:
+            logger.warning("Failed to initialize public API key: %s", e)
+        
         # Check if solve-field tool is available on startup
         is_available, error_msg = solver_bridge.check_solve_field_available()
         if not is_available:

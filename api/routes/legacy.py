@@ -223,9 +223,11 @@ async def login(request: Request, db: AsyncIOMotorDatabase = Depends(get_db)):
         apikey = payload.get("apikey")
         if not apikey:
             return _legacy_error('need "apikey"')
-        valid = await submission_service.validate_api_key(db, apikey)
-        if not valid:
-            return _legacy_error("Invalid API key. Please check your API key and try again.")
+        # Public API key is always valid, other keys need validation
+        if apikey != submission_service.PUBLIC_API_KEY:
+            valid = await submission_service.validate_api_key(db, apikey)
+            if not valid:
+                return _legacy_error("Invalid API key. Please check your API key and try again.")
         return {"status": "success", "session": apikey, "message": "authenticated"}
     except Exception as e:  # noqa: BLE001
         logger.error("Error in login endpoint: %s", e, exc_info=True)
@@ -240,7 +242,8 @@ async def upload(request: Request, db: AsyncIOMotorDatabase = Depends(get_db)):
         apikey = payload.get("apikey") or payload.get("session")
         if not apikey:
             return _legacy_error("need session")
-        if not await submission_service.validate_api_key(db, apikey):
+        # Public API key is always valid, other keys need validation
+        if apikey != submission_service.PUBLIC_API_KEY and not await submission_service.validate_api_key(db, apikey):
             return _legacy_error("Invalid API key. Please check your API key and try again.")
         upload_file = files.get("file")
         if upload_file is None:
@@ -266,7 +269,8 @@ async def url_upload(request: Request, db: AsyncIOMotorDatabase = Depends(get_db
     apikey = payload.get("apikey") or payload.get("session")
     if not apikey:
         return _legacy_error("need session")
-    if not await submission_service.validate_api_key(db, apikey):
+    # Public API key is always valid, other keys need validation
+    if apikey != submission_service.PUBLIC_API_KEY and not await submission_service.validate_api_key(db, apikey):
         return _legacy_error("Invalid API key. Please check your API key and try again.")
     url = payload.get("url")
     if not url:
