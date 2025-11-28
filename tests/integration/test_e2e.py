@@ -4,6 +4,7 @@ End-to-end integration test for Astrometry.net API.
 Tests the complete flow: login -> upload -> wait -> download artifacts.
 """
 
+import argparse
 import sys
 import time
 import urllib.request
@@ -96,6 +97,31 @@ def test_upload(client: Client, image_path: Path) -> dict:
             return None
     except Exception as e:
         print(f"❌ Upload failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def test_url_upload(client: Client, image_url: str) -> dict:
+    """Test uploading an image from URL."""
+    print("\n" + "=" * 60)
+    print(f"Test 2: Upload image from URL")
+    print("=" * 60)
+    print(f"URL: {image_url}")
+    print("=" * 60)
+    
+    try:
+        result = client.url_upload(image_url)
+        if result.get('status') == 'success':
+            print("✅ URL upload successful!")
+            print(f"   Submission ID: {result.get('subid')}")
+            print(f"   Jobs: {result.get('jobs', [])}")
+            return result
+        else:
+            print(f"❌ URL upload failed: {result}")
+            return None
+    except Exception as e:
+        print(f"❌ URL upload failed: {e}")
         import traceback
         traceback.print_exc()
         return None
@@ -227,62 +253,136 @@ def test_api_endpoints(client: Client, job_id: int) -> bool:
 
 def main():
     """Run complete end-to-end test."""
+    parser = argparse.ArgumentParser(
+        description="End-to-end integration test for Astrometry.net API",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Test file upload (default)
+  python test_e2e.py
+  
+  # Test URL upload
+  python test_e2e.py --url-upload
+  
+  # Test both file and URL upload
+  python test_e2e.py --both
+  
+  # Use custom image URL
+  python test_e2e.py --url-upload --image-url "https://example.com/image.jpg"
+        """
+    )
+    parser.add_argument(
+        "--url-upload",
+        action="store_true",
+        help="Test URL upload instead of file upload"
+    )
+    parser.add_argument(
+        "--both",
+        action="store_true",
+        help="Test both file upload and URL upload"
+    )
+    parser.add_argument(
+        "--image-url",
+        type=str,
+        default=TEST_IMAGE_URL,
+        help=f"Image URL for URL upload test (default: {TEST_IMAGE_URL})"
+    )
+    parser.add_argument(
+        "--api-url",
+        type=str,
+        default=API_URL,
+        help=f"API base URL (default: {API_URL})"
+    )
+    parser.add_argument(
+        "--api-key",
+        type=str,
+        default=API_KEY,
+        help=f"API key (default: {API_KEY})"
+    )
+    
+    args = parser.parse_args()
+    
     print("=" * 60)
     print("End-to-End Integration Test")
     print("=" * 60)
-    print(f"API URL: {API_URL}")
-    print(f"API Key: {API_KEY}")
-    print(f"Test Image URL: {TEST_IMAGE_URL}")
+    print(f"API URL: {args.api_url}")
+    print(f"API Key: {args.api_key}")
+    print(f"Test Image URL: {args.image_url}")
+    if args.url_upload:
+        print("Mode: URL Upload")
+    elif args.both:
+        print("Mode: Both File and URL Upload")
+    else:
+        print("Mode: File Upload (default)")
     print("=" * 60)
     
-    # Setup - get filename from URL
-    test_image_filename = get_filename_from_url(TEST_IMAGE_URL)
-    test_image_path = Path(test_image_filename)
     output_dir = Path("data/test_runs")
     
-    # Step 1: Download test image if needed
-    if not test_image_path.exists():
-        if not download_test_image(TEST_IMAGE_URL, test_image_path):
-            print("\n❌ Cannot proceed without test image")
-            return 1
-    else:
-        print(f"\n✅ Test image already exists: {test_image_path}")
-    
-    # Step 2: Initialize client and login
-    client = Client(apiurl=API_URL)
-    if not test_login(client, API_KEY):
+    # Step 1: Initialize client and login
+    client = Client(apiurl=args.api_url)
+    if not test_login(client, args.api_key):
         print("\n❌ Cannot proceed without login")
         return 1
     
-    # Step 3: Upload image
-    upload_result = test_upload(client, test_image_path)
-    if not upload_result:
-        print("\n❌ Cannot proceed without upload")
-        return 1
+    # Determine which tests to run
+    test_file_upload = not args.url_upload or args.both
+    test_url_upload = args.url_upload or args.both
     
-    sub_id = upload_result.get('subid')
-    if not sub_id:
-        print("\n❌ No submission ID in upload result")
-        return 1
+    results = []
     
-    # Step 4: Wait for job completion
-    job_id = wait_for_job(client, sub_id)
-    if not job_id:
-        print("\n❌ Job did not complete successfully")
-        return 1
+    # Test file upload if needed
+    if test_file_upload:
+        # Setup - get filename from URL
+        test_image_filename = get_filename_from_url(args.image_url)
+        test_image_path = Path(test_image_filename)
+        
+        # Download test image if needed
+        if not test_image_path.exists():
+            if not download_test_image(args.image_url, test_image_path):
+                print("\n❌ Cannot proceed without test image")
+                return 1
+        else:
+            print(f"\n✅ Test image already exists: {test_image_path}")
+        
+        # Upload image file
+        upload_result = test_upload(client, test_image_path)
+        if not upload_result:
+            print("\n❌ File upload failed")
+            if not args.both:
+                return 1
+        else:
+            sub_id = upload_result.get('subid')
+            if sub_id:
+                job_id = wait_for_job(client, sub_id)
+                if job_id:
+                    test_api_endpoints(client, job_id)
+                    test_download_artifacts(client, job_id, output_dir)
+                    results.append(("file_upload", sub_id, job_id))
     
-    # Step 5: Test API endpoints
-    test_api_endpoints(client, job_id)
-    
-    # Step 6: Download artifacts
-    test_download_artifacts(client, job_id, output_dir)
+    # Test URL upload if needed
+    if test_url_upload:
+        upload_result = test_url_upload(client, args.image_url)
+        if not upload_result:
+            print("\n❌ URL upload failed")
+            if not args.both:
+                return 1
+        else:
+            sub_id = upload_result.get('subid')
+            if sub_id:
+                job_id = wait_for_job(client, sub_id)
+                if job_id:
+                    test_api_endpoints(client, job_id)
+                    test_download_artifacts(client, job_id, output_dir)
+                    results.append(("url_upload", sub_id, job_id))
     
     # Summary
     print("\n" + "=" * 60)
     print("✅ All tests completed successfully!")
     print("=" * 60)
-    print(f"Job ID: {job_id}")
-    print(f"Submission ID: {sub_id}")
+    for test_type, sub_id, job_id in results:
+        print(f"{test_type}:")
+        print(f"  Job ID: {job_id}")
+        print(f"  Submission ID: {sub_id}")
     print(f"Artifacts saved to: {output_dir}")
     print("=" * 60)
     
