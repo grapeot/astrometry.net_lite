@@ -4,6 +4,8 @@ FastAPI + MongoDB rewrite of the legacy astrometry.net web service. The goal is 
 
 ## Prerequisites
 - Python 3.12+
+- [uv](https://github.com/astral-sh/uv) - Fast Python package installer (install: `curl -LsSf https://astral.sh/uv/install.sh | sh`)
+- Node.js 20+ and npm (for frontend development)
 - MongoDB 7+ (local or Atlas). Dev scripts assume `mongodb://localhost:27017` and the `scripts/start_mongodb.sh` helper.
 - Astrometry.net CLI via Homebrew (`solve-field`, `augment-xylist`, `astrometry-engine`).
 - Pre-downloaded index files under `./astrometry_indexes/`. Download index files from https://data.astrometry.net/ and place them in `./astrometry_indexes/` before running the service.
@@ -12,27 +14,51 @@ FastAPI + MongoDB rewrite of the legacy astrometry.net web service. The goal is 
 
 ### Initial Setup
 
-1. Ensure the uv-managed virtualenv exists and is activated:
+**Option 1: Automated Setup (Recommended)**
+
+Run the setup script to automatically configure your local development environment:
+
+```bash
+./scripts/setup_local.sh
+```
+
+This script will:
+- Create a Python virtual environment using `uv`
+- Install all backend Python dependencies
+- Install all frontend Node.js dependencies
+
+**Option 2: Manual Setup**
+
+1. Create and activate the virtual environment:
    ```bash
+   uv venv venv
    source venv/bin/activate
    ```
 
-2. Install backend dependencies (recorded in `pyproject.toml`):
+2. Install backend dependencies:
    ```bash
-   uv pip install -r <(python - <<'PY'
-from pathlib import Path
-from tomllib import load
-py = Path('pyproject.toml')
-data = load(py.open('rb'))
-print('\n'.join(data['project']['dependencies'] + data['project']['optional-dependencies']['dev']))
-PY
-)
+   python <<EOF > /tmp/requirements.txt
+   from pathlib import Path
+   from tomllib import load
+   data = load(Path('pyproject.toml').open('rb'))
+   deps = data['project']['dependencies']
+   dev_deps = data['project']['optional-dependencies']['dev']
+   print('\n'.join(deps + dev_deps))
+   EOF
+   uv pip install -r /tmp/requirements.txt
+   rm /tmp/requirements.txt
    ```
-   > Already installed in this repo snapshot.
 
-3. Copy `.env.example` → `.env` (already prepared) or edit `.env` with Mongo URI, CLI paths, and directories.
+3. Install frontend dependencies:
+   ```bash
+   cd frontend
+   npm install
+   cd ..
+   ```
 
-4. Seed an API key (once per environment):
+4. Copy `.env.example` → `.env` (if not already present) or edit `.env` with Mongo URI, CLI paths, and directories.
+
+5. Seed an API key (once per environment):
    ```bash
    PYTHONPATH=. python scripts/seed_api_key.py test-key-12345 test@example.com
    ```
@@ -68,12 +94,15 @@ For local development, you'll typically run 4 processes simultaneously:
 
 The React dashboard lives in `frontend/` (Vite + TypeScript).
 
+**Using the start script (recommended):**
+```bash
+./scripts/start_frontend.sh
+```
+
+**Or manually:**
 ```bash
 cd frontend
-npm install    # already done once
 npm run dev    # launches http://localhost:5173
-# Or use the unified script (automatically enters frontend directory)
-../scripts/start_frontend.sh
 ```
 
 Set `VITE_API_BASE` in `frontend/.env.development` if your API runs on a different host.
@@ -191,8 +220,10 @@ docker run --rm -p 8002:8002 \
   astrometry-backend
 ```
 
-> **Note:** The Dockerfile installs astrometry.net CLI via apt-get (Debian packages), which is faster than building from source.
-> KML/KMZ generation is disabled by default. To enable KMZ, set `ENABLE_KMZ=true` and ensure `wcs2kml` is available.
+> **Note:** 
+> - The Dockerfile uses `uv` for Python package management, which provides faster dependency resolution and installation.
+> - The Dockerfile installs astrometry.net CLI via apt-get (Debian packages), which is faster than building from source.
+> - KML/KMZ generation is disabled by default. To enable KMZ, set `ENABLE_KMZ=true` and ensure `wcs2kml` is available.
 
 ### Using the Legacy Python Client
 

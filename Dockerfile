@@ -7,10 +7,14 @@ ENV PYTHONUNBUFFERED=1 \
 # Install system dependencies and astrometry.net CLI tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     astrometry.net \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv
-RUN pip install --no-cache-dir uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    export PATH="/root/.local/bin:$PATH" && \
+    uv --version
+ENV PATH="/root/.local/bin:$PATH"
 
 # Install Python dependencies
 COPY pyproject.toml README.md ./
