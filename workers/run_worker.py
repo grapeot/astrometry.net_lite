@@ -66,6 +66,16 @@ async def process_loop():
     client = create_mongo_client()
     db = get_database(client)
     try:
+        # Check if solve-field tool is available on startup
+        is_available, error_msg = solver_bridge.check_solve_field_available()
+        if not is_available:
+            logger.warning(
+                "solve-field tool not available. Jobs will fail with helpful error messages.\n%s",
+                error_msg
+            )
+        else:
+            logger.info("solve-field tool is available and ready")
+        
         # Recover incomplete jobs on startup
         recovered = await recover_incomplete_jobs(db)
         if recovered > 0:
