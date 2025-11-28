@@ -27,9 +27,12 @@ async def _parse_request_payload(request: Request) -> tuple[dict[str, Any], dict
     files: dict[str, UploadFile] = {}
     payload: dict[str, Any] = {}
 
-    logger.debug("Parsing request payload. Content-Type: %s", content_type)
+    logger.warning("=== PARSING REQUEST ===")
+    logger.warning("Content-Type: %s", content_type)
 
-    upload_types = (UploadFile,)
+    # Check for UploadFile type - can be from fastapi or starlette
+    from starlette.datastructures import UploadFile as StarletteUploadFile
+    upload_types = (UploadFile, StarletteUploadFile)
 
     if "application/x-www-form-urlencoded" in content_type:
         # Standard form-urlencoded - use FastAPI's built-in parser
@@ -166,31 +169,78 @@ async def _parse_request_payload(request: Request) -> tuple[dict[str, Any], dict
             # Standard multipart format - use FastAPI's built-in parser
             try:
                 form = await request.form()
-                logger.debug("Form keys (standard parsing): %s", list(form.keys()))
+                logger.warning("Form keys (standard parsing): %s", list(form.keys()))
                 
-                # Try to get request-json field
-                data = form.get("request-json")
-                if data is None:
-                    logger.warning("request-json not found in form. Available fields: %s", list(form.keys()))
+                # Collect all form items first to avoid consuming the form
+                # This ensures we can access both request-json and files
+                form_items = {}
+                for key, value in form.multi_items():
+                    if key not in form_items:
+                        form_items[key] = []
+                    form_items[key].append(value)
+                    logger.warning("Form item: key=%s, type=%s, type_name=%s, is_uploadfile=%s", 
+                               key, type(value), type(value).__name__, isinstance(value, upload_types))
+                    # Also log more details about the value
+                    if hasattr(value, 'filename'):
+                        logger.warning("  -> Has filename attribute: %s", getattr(value, 'filename', None))
+                    if hasattr(value, 'file'):
+                        logger.warning("  -> Has file attribute: %s", type(getattr(value, 'file', None)))
+                
+                logger.warning("Form items collected: %s", list(form_items.keys()))
+                
+                # Extract request-json (should be first item)
+                if "request-json" not in form_items:
+                    logger.warning("request-json not found in form. Available fields: %s", list(form_items.keys()))
                     raise HTTPException(status_code=400, detail="missing request-json")
                 
-                # Handle both string and UploadFile types
+                # Get request-json value (should be a string, not UploadFile)
+                data = form_items["request-json"][0]
                 if isinstance(data, upload_types):
                     data_str = (await data.read()).decode('utf-8')
                 else:
                     data_str = str(data)
-                
                 logger.debug("request-json content: %s", data_str[:200])
                 payload = json.loads(data_str)
+                logger.warning("Parsed request-json: %s", list(payload.keys()))
                 
-                # Collect files
-                for key, value in form.multi_items():
-                    logger.debug("Form item: key=%s, type=%s", key, type(value))
-                    if isinstance(value, upload_types):
-                        files[key] = value
-                        logger.debug("Found file: key=%s, filename=%s", key, getattr(value, 'filename', None))
+                # Collect all files from form_items
+                # Check by type name or hasattr(filename) since isinstance might fail due to import differences
+                for key, values in form_items.items():
+                    if key == "request-json":
+                        continue  # Already processed
+                    # Take the first value (for single file uploads)
+                    value = values[0] if values else None
+                    if value:
+                        # Check if it's an UploadFile by type name or by checking for filename attribute
+                        is_upload_file = (
+                            isinstance(value, upload_types) or
+                            type(value).__name__ == 'UploadFile' or
+                            (hasattr(value, 'filename') and hasattr(value, 'file'))
+                        )
+                        logger.warning("Checking field '%s': type=%s, type_name=%s, is_uploadfile=%s", 
+                                   key, type(value), type(value).__name__, is_upload_file)
+                        if is_upload_file:
+                            files[key] = value
+                            logger.warning("✓ Found file: key=%s, filename=%s", 
+                                       key, getattr(value, 'filename', None))
                 
-                logger.debug("Parsed payload keys: %s, files keys: %s", list(payload.keys()), list(files.keys()))
+                # Also try direct access to "file" field as fallback
+                if "file" not in files:
+                    logger.warning("File not found in form_items, trying direct form.get('file')")
+                    file_value = form.get("file")
+                    if file_value:
+                        is_upload_file = (
+                            isinstance(file_value, upload_types) or
+                            type(file_value).__name__ == 'UploadFile' or
+                            (hasattr(file_value, 'filename') and hasattr(file_value, 'file'))
+                        )
+                        logger.warning("form.get('file'): type=%s, type_name=%s, is_uploadfile=%s", 
+                                   type(file_value), type(file_value).__name__, is_upload_file)
+                        if is_upload_file:
+                            files["file"] = file_value
+                            logger.warning("✓ Found file via direct access: filename=%s", getattr(file_value, 'filename', None))
+                
+                logger.warning("Parsed payload keys: %s, files keys: %s", list(payload.keys()), list(files.keys()))
                 return payload, files
             except HTTPException:
                 raise
@@ -237,8 +287,11 @@ async def login(request: Request, db: AsyncIOMotorDatabase = Depends(get_db)):
 @router.post("/upload")
 async def upload(request: Request, db: AsyncIOMotorDatabase = Depends(get_db)):
     try:
+        content_type = request.headers.get("content-type", "")
+        logger.warning("=== UPLOAD REQUEST ===")
+        logger.warning("Content-Type: %s", content_type)
         payload, files = await _parse_request_payload(request)
-        logger.debug("Upload payload keys: %s, files keys: %s", list(payload.keys()), list(files.keys()))
+        logger.warning("Upload payload keys: %s, files keys: %s", list(payload.keys()), list(files.keys()))
         apikey = payload.get("apikey") or payload.get("session")
         if not apikey:
             return _legacy_error("Please login first")

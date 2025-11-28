@@ -14,6 +14,7 @@ export function NewJob() {
   const [uploadType, setUploadType] = useState<'url' | 'file'>('url');
   const [url, setUrl] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileInputKey, setFileInputKey] = useState(0); // Key to reset file input
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasLoggedOut, setHasLoggedOut] = useState(false);
@@ -166,7 +167,11 @@ export function NewJob() {
                 <input
                   type="radio"
                   checked={uploadType === 'url'}
-                  onChange={() => setUploadType('url')}
+                  onChange={() => {
+                    setUploadType('url');
+                    setSelectedFile(null);
+                    setFileInputKey(prev => prev + 1); // Reset file input
+                  }}
                   style={{ width: 'auto' }}
                 />
                 <span>Upload from URL</span>
@@ -175,7 +180,10 @@ export function NewJob() {
                 <input
                   type="radio"
                   checked={uploadType === 'file'}
-                  onChange={() => setUploadType('file')}
+                  onChange={() => {
+                    setUploadType('file');
+                    setUrl(''); // Clear URL when switching to file upload
+                  }}
                   style={{ width: 'auto' }}
                 />
                 <span>Upload file</span>
@@ -205,9 +213,14 @@ export function NewJob() {
               <label>
                 Select file
                 <input
+                  key={fileInputKey}
                   type="file"
                   accept=".fits,.fit,.fts,.jpg,.jpeg,.png"
-                  onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    setSelectedFile(file);
+                    setError(null); // Clear any previous errors
+                  }}
                   style={{
                     padding: '0.8rem 1rem',
                     borderRadius: '10px',
@@ -220,7 +233,7 @@ export function NewJob() {
                 />
                 {selectedFile && (
                   <p style={{ marginTop: '0.5rem', color: '#9ca3af', fontSize: '0.9rem' }}>
-                    Selected: {selectedFile.name}
+                    Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
                   </p>
                 )}
               </label>

@@ -128,7 +128,7 @@ def _build_augment_xylist_args(source_path: Path, job_dir: Path, upload_args: di
             "--tag-all",
             "--objs", "1000",
         ]
-    
+
     # Add common parameters (both augment-xylist and solve-field support these)
     scale_units = upload_args.get("scale_units")
     if scale_units:
@@ -163,7 +163,7 @@ def _build_augment_xylist_args(source_path: Path, job_dir: Path, upload_args: di
     parity = upload_args.get("parity")
     if parity is not None:
         args += ["--parity", "pos" if int(parity) >= 0 else "neg"]
-    
+
     # Add source image and output file specifications
     if use_solve_field:
         # For solve-field --just-augment, add output file options and source image
