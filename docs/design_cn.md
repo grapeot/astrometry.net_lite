@@ -49,23 +49,29 @@ Astrometry Lite 的答案是：
 | **前端** | React + Vite + TypeScript（SPA） |
 | **API 风格** | OpenAPI/Swagger，规范 JSON，Pydantic 验证 |
 | **Python** | 仅 Python 3.12+ |
-| **架构** | 微服务：独立的 API、Worker、Frontend |
+| **架构** | 微服务：独立的 API、Worker、Frontend（开发环境）<br>统一服务：后端 serve 前端（生产环境） |
 | **上传处理** | FastAPI 原生 multipart 支持 |
 | **认证** | 简单 API key（单租户） |
+| **静态文件** | FastAPI StaticFiles + SPA 路由支持 |
+| **Docker** | 多阶段构建，前端构建集成到后端镜像 |
 
 ## 系统架构
 
+### 开发环境架构
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     前端 (React)                             │
+│                     前端 (React + Vite Dev Server)          │
+│  端口: 5173                                                  │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
 │  │  JobGrid    │  │ JobDetail   │  │  Console (需认证)    │  │
 │  │  (公开)     │  │ (公开)      │  │  (上传/管理)         │  │
 │  └─────────────┘  └─────────────┘  └─────────────────────┘  │
 └────────────────────────────┬────────────────────────────────┘
-                             │ HTTP
+                             │ HTTP (CORS)
 ┌────────────────────────────▼────────────────────────────────┐
 │                    FastAPI 后端                              │
+│  端口: 8002                                                  │
 │  ┌────────────────┐  ┌────────────────┐  ┌──────────────┐  │
 │  │ Legacy API     │  │ Frontend API   │  │ 文件路由      │  │
 │  │ /api/*         │  │ /api/jobs/*    │  │ /wcs_file/*  │  │
@@ -81,6 +87,39 @@ Astrometry Lite 的答案是：
 └─────────────────┘  └─────────────────┘  └─────────────────┘
 ```
 
+### 生产环境架构（简化）
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    FastAPI 后端 (统一服务)                    │
+│  端口: 8002                                                  │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  静态文件服务 (frontend/dist)                            │ │
+│  │  - /assets/* (JS, CSS)                                  │ │
+│  │  - / (SPA 路由，返回 index.html)                         │ │
+│  └────────────────────────────────────────────────────────┘ │
+│  ┌────────────────┐  ┌────────────────┐  ┌──────────────┐  │
+│  │ Legacy API     │  │ Frontend API   │  │ 文件路由      │  │
+│  │ /api/*         │  │ /api/jobs/*    │  │ /wcs_file/*  │  │
+│  └────────────────┘  └────────────────┘  └──────────────┘  │
+└───────┬─────────────────────┬───────────────────┬───────────┘
+        │                     │                   │
+┌───────▼─────────┐  ┌────────▼────────┐  ┌──────▼──────────┐
+│    MongoDB      │  │    文件系统      │  │   Worker        │
+│  - api_keys     │  │  - uploads/     │  │  - solve-field  │
+│  - submissions  │  │  - jobs/{id}/   │  │  - annotator    │
+│  - jobs         │  │    - wcs.fits   │  │                 │
+│  - queue        │  │    - status.json│  │                 │
+└─────────────────┘  └─────────────────┘  └─────────────────┘
+```
+
+**生产环境特点：**
+- 后端容器内置前端构建产物（`frontend/dist`）
+- FastAPI 自动 serve 静态文件和 SPA 路由
+- 前端使用相对路径 `/api` 调用后端 API
+- 单一端口（8002）提供完整服务
+- 无需独立的 nginx 或前端容器
+
 ## 技术栈
 
 | 组件 | 技术 |
@@ -91,6 +130,8 @@ Astrometry Lite 的答案是：
 | 求解器 | Astrometry.net CLI（Homebrew） |
 | 前端 | React 19 + Vite 7 + TypeScript |
 | 图像处理 | Pillow, Astropy |
+| 静态文件服务 | FastAPI StaticFiles（生产环境） |
+| 部署 | Docker + Docker Compose（多阶段构建） |
 
 ## 数据模型
 
@@ -238,6 +279,8 @@ MongoDB 状态:    queued ──► solving ──► success
 
 ## 快速开始
 
+### 开发环境
+
 ```bash
 # 1. 启动 MongoDB
 ./scripts/start_mongodb.sh
@@ -251,13 +294,45 @@ PYTHONPATH=. python scripts/seed_api_key.py test-key-12345 test@example.com
 # 4. 启动 Worker
 ./scripts/start_worker.sh
 
-# 5. 启动前端
+# 5. 启动前端（开发服务器）
 cd frontend && npm run dev
 ```
 
 **访问地址：**
 - API: http://127.0.0.1:8002
 - 前端: http://localhost:5173
+
+### 生产环境
+
+#### 方式一：使用 Docker Compose（推荐）
+
+```bash
+# 构建并启动所有服务（包括前端构建）
+./scripts/start_backend_prod.sh
+
+# 或者手动执行
+docker-compose -f docker-compose.prod.yml up -d --build
+```
+
+**访问地址：**
+- 统一入口: http://localhost:8002（前端和 API）
+
+#### 方式二：本地部署
+
+```bash
+# 1. 构建前端
+cd frontend
+VITE_API_BASE=/api npm run build
+
+# 2. 启动后端（会自动serve前端）
+./scripts/start_backend.sh
+
+# 3. 启动 Worker
+./scripts/start_worker.sh
+```
+
+**访问地址：**
+- 统一入口: http://127.0.0.1:8002（前端和 API）
 
 ## 配置
 
@@ -268,6 +343,7 @@ cd frontend && npm run dev
 ```
 astrometry.net_web_server/
 ├── api/                 # FastAPI 后端
+│   ├── main.py          # 应用入口（包含静态文件服务）
 │   ├── routes/
 │   │   ├── legacy.py    # 原版 API 兼容
 │   │   └── frontend.py  # 公开前端 API
@@ -277,12 +353,24 @@ astrometry.net_web_server/
 │   └── annotator/       # 图像标注
 ├── workers/             # 后台处理
 ├── frontend/            # React 应用
-│   └── src/
-│       ├── pages/       # JobGrid, JobDetail
-│       └── hooks/       # useJobList, useJobDetail
+│   ├── src/
+│   │   ├── pages/       # JobGrid, JobDetail
+│   │   └── hooks/       # useJobList, useJobDetail
+│   └── dist/            # 构建产物（生产环境）
 ├── domain/              # 数据模型
+├── scripts/             # 工具脚本
+│   └── start_backend_prod.sh  # 生产环境启动脚本
+├── Dockerfile           # 多阶段构建（包含前端构建）
+├── docker-compose.prod.yml  # 生产环境配置
 └── docs/                # 文档
 ```
+
+**生产环境构建说明：**
+- `Dockerfile` 使用多阶段构建：
+  1. `base` stage: 构建 Python 后端
+  2. `frontend-builder` stage: 构建前端（使用 `VITE_API_BASE=/api`）
+  3. 最终 stage: 合并后端和前端构建产物到 `frontend/dist`
+- 后端容器包含 `frontend/dist`，FastAPI 自动 serve 静态文件
 
 ## 未实现的功能
 
