@@ -65,7 +65,7 @@ class TestLoginEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "error"
-        assert "bad apikey" in data["errormessage"]
+        assert "Invalid API key" in data["errormessage"]
 
     def test_login_missing_apikey(
         self, client: TestClient, mock_db_in_app: AsyncMock

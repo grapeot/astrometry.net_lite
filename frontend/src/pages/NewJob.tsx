@@ -1,4 +1,4 @@
-import { useState, FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { uploadFile, uploadFromUrl, login, type UploadResponse } from '../api';
 
@@ -28,7 +28,7 @@ export function NewJob() {
       } else {
         setError(res.errormessage ?? 'Login failed');
       }
-    } catch (err) {
+    } catch {
       setError('Network error, please try again later');
     } finally {
       setLoading(false);
@@ -69,7 +69,7 @@ export function NewJob() {
       } else {
         setError(result.errormessage ?? 'Submission failed');
       }
-    } catch (err) {
+    } catch {
       setError('Submission error, please try again later');
     } finally {
       setLoading(false);
