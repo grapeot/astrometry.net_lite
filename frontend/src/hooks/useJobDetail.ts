@@ -38,7 +38,7 @@ export function useJobDetail(jobId: number) {
 
       // Update job status info
       if (data.job_status !== 'solving') {
-        // Job completed or failed, reload full detail
+        // Job completed or failed, reload full detail to get annotated image info
         const detailData = await fetchJobDetail(jobId);
         setJob(detailData.job);
         // Stop polling
