@@ -7,7 +7,6 @@ from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 
 from core.config import settings
 from domain.models import QueueMessage
-from services.submissions import get_api_key_priority
 
 QUEUE_COLLECTION = "queue_messages"
 
@@ -23,6 +22,9 @@ async def enqueue_job(
     api_key: Optional[str] = None,
 ) -> QueueMessage:
     """Enqueue a job with priority based on API key."""
+    # Lazy import to avoid circular dependency
+    from services.submissions import get_api_key_priority
+    
     # Get priority from API key if provided
     priority = await get_api_key_priority(db, api_key) if api_key else 50
     
