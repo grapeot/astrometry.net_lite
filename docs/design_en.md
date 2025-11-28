@@ -14,8 +14,6 @@ Astrometry Lite answers this with:
 - **MongoDB** for flexible document storage
 - **Real-time job tracking** via file system state
 
-**Live Demo:** [https://astrometry.yage.ai/](https://astrometry.yage.ai/)
-
 ## Original vs Modern Implementation
 
 ### The Original (net/ directory)
@@ -129,7 +127,7 @@ The original astrometry.net implementation (still preserved in `net/`) showcases
 | Backend | FastAPI + Uvicorn |
 | Database | MongoDB 7+ (Motor async driver) |
 | Queue | MongoDB-backed (queue_messages collection) |
-| Solver | Astrometry.net CLI (Homebrew) |
+| Solver | Astrometry.net CLI (two-step process: augment-xylist + astrometry-engine) |
 | Frontend | React 19 + Vite 7 + TypeScript |
 | Image Processing | Pillow, Astropy |
 | Static File Serving | FastAPI StaticFiles (Production) |
@@ -373,6 +371,26 @@ astrometry.net_web_server/
   2. `frontend-builder` stage: Build frontend (with `VITE_API_BASE=/api`)
   3. Final stage: Merge backend and frontend build artifacts into `frontend/dist`
 - Backend container includes `frontend/dist`, FastAPI automatically serves static files
+
+## Solver Optimization
+
+The system uses a two-step solving process for better performance:
+
+1. **augment-xylist** (or `solve-field --just-augment`)
+   - Extract star sources from image
+   - Generate `.axy` file
+   - Default: limit to 1000 sources, downsample by 2
+
+2. **astrometry-engine**
+   - Uses config file with explicit index listing
+   - Enables `inparallel` mode for parallel index checking
+   - Avoids system default indexes (tycho2), only uses configured 4xxx series indexes
+
+**Performance Optimizations:**
+- Auto-generates `astrometry.cfg` config file
+- Only includes `.fits` files from configured directory (excludes `.fits.gz`)
+- Enables `inparallel` mode (when indexes fit in memory)
+- Avoids system default index interference
 
 ## Unsupported Features
 

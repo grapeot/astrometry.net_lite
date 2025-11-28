@@ -2,8 +2,6 @@
 
 This document provides an overview of the test suite for the Astrometry.net Lite project, covering both backend (Python/FastAPI) and frontend (React/TypeScript) testing.
 
-**Live Demo:** [https://astrometry.yage.ai/](https://astrometry.yage.ai/)
-
 ## Test Structure
 
 ```
@@ -15,7 +13,8 @@ tests/
 │   │   ├── test_submissions.py   # Submission handling
 │   │   ├── test_queue.py         # Message queue service
 │   │   ├── test_storage.py       # File storage operations
-│   │   └── test_ids.py           # ID sequence generation
+│   │   ├── test_ids.py           # ID sequence generation
+│   │   └── test_solver_bridge.py # Solver CLI integration
 │   ├── api/                       # API route tests
 │   │   ├── test_routes_legacy.py # Legacy API endpoints
 │   │   └── test_routes_frontend.py # Frontend API endpoints
@@ -76,6 +75,12 @@ Tests for core business logic:
 - **ID Service** (`test_ids.py`)
   - Sequence generation
   - Counter initialization
+
+- **Solver Bridge** (`test_solver_bridge.py`)
+  - Tool availability checking
+  - Path resolution and fallback
+  - Argument building for augment-xylist and astrometry-engine
+  - Config file generation with index exclusion
 
 #### API Routes (`tests/unit/api/`)
 Tests for HTTP endpoints:
@@ -177,9 +182,9 @@ npm run test:coverage
 
 | Category | Test Count |
 |----------|------------|
-| Backend Unit Tests | 85 |
-| Frontend Unit Tests | 22 |
-| **Total** | **107** |
+| Backend Unit Tests | 95+ |
+| Frontend Unit Tests | 22+ |
+| **Total** | **117+** |
 
 ## CI/CD Integration
 

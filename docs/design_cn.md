@@ -14,8 +14,6 @@ Astrometry Lite 的答案是：
 - **MongoDB** 实现灵活的文档存储
 - **文件系统状态** 支持实时任务追踪
 
-**Live Demo:** [https://astrometry.yage.ai/](https://astrometry.yage.ai/)
-
 ## 新旧实现对比
 
 ### 原版实现（net/ 目录）
@@ -129,7 +127,7 @@ Astrometry Lite 的答案是：
 | 后端 | FastAPI + Uvicorn |
 | 数据库 | MongoDB 7+（Motor 异步驱动） |
 | 队列 | MongoDB（queue_messages 集合） |
-| 求解器 | Astrometry.net CLI（Homebrew） |
+| 求解器 | Astrometry.net CLI（两步流程：augment-xylist + astrometry-engine） |
 | 前端 | React 19 + Vite 7 + TypeScript |
 | 图像处理 | Pillow, Astropy |
 | 静态文件服务 | FastAPI StaticFiles（生产环境） |
@@ -373,6 +371,26 @@ astrometry.net_web_server/
   2. `frontend-builder` stage: 构建前端（使用 `VITE_API_BASE=/api`）
   3. 最终 stage: 合并后端和前端构建产物到 `frontend/dist`
 - 后端容器包含 `frontend/dist`，FastAPI 自动 serve 静态文件
+
+## 求解器优化
+
+系统采用两步求解流程以提升性能：
+
+1. **augment-xylist**（或 `solve-field --just-augment`）
+   - 从图像中提取星点源
+   - 生成 `.axy` 文件
+   - 默认限制 1000 个源，下采样 2 倍
+
+2. **astrometry-engine**
+   - 使用配置文件显式列出索引文件
+   - 启用 `inparallel` 模式并行检查索引
+   - 避免加载系统默认索引（tycho2），只使用配置的 4xxx 系列索引
+
+**性能优化：**
+- 自动生成 `astrometry.cfg` 配置文件
+- 只包含配置目录下的 `.fits` 文件（排除 `.fits.gz`）
+- 启用 `inparallel` 模式（索引可全部加载到内存时）
+- 避免系统默认索引干扰
 
 ## 未实现的功能
 
