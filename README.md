@@ -2,6 +2,10 @@
 
 FastAPI + MongoDB rewrite of the legacy astrometry.net web service. The goal is API compatibility with `net/client/client.py` while slimming the stack to a manageable FastAPI backend plus a React frontend.
 
+## Live Demo
+
+Check out the live demo at [https://astrometry.yage.ai/](https://astrometry.yage.ai/)
+
 ## Prerequisites
 - Python 3.12+
 - [uv](https://github.com/astral-sh/uv) - Fast Python package installer (install: `curl -LsSf https://astral.sh/uv/install.sh | sh`)
