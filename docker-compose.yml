@@ -25,7 +25,7 @@ services:
       dockerfile: Dockerfile
     container_name: astrometry-backend
     ports:
-      - "8002:8002"
+      - "8020:8002"
     volumes:
       - ./data:/app/data
       - ./astrometry_indexes:/app/astrometry_indexes
@@ -61,7 +61,7 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - VITE_API_BASE=http://localhost:8002
+      - VITE_API_BASE=http://localhost:8020
     depends_on:
       - backend
     networks:

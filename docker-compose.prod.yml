@@ -21,7 +21,7 @@ services:
       dockerfile: Dockerfile
     container_name: astrometry-backend-prod
     ports:
-      - "8002:8002"
+      - "8020:8002"
     volumes:
       # 生产环境只挂载数据目录，不挂载代码
       - ./data:/app/data
@@ -47,7 +47,7 @@ services:
       dockerfile: Dockerfile.prod
       args:
         # 设置前端 API 基础 URL（根据实际部署环境修改）
-        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:8002}
+        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:8020}
     container_name: astrometry-frontend-prod
     ports:
       - "80:80"
