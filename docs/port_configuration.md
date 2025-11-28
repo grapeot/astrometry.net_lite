@@ -6,15 +6,41 @@
 
 **⚠️ 重要：Docker容器间通信 vs 外部端口映射**
 
-在Docker Compose中：
-- **容器内部端口**：MongoDB容器内部始终监听27017端口
-- **主机端口映射**：`MONGODB_PORT`控制从宿主机访问MongoDB的端口
-- **容器间通信**：后端和worker通过服务名`mongodb`连接，使用容器内部端口27017（不受`MONGODB_PORT`影响）
+在Docker Compose中有两种通信方式：
+
+### 1. 容器间通信（后端 ↔ MongoDB）
+- **使用服务名和容器内部端口**
+- MongoDB容器内部始终监听27017端口
+- 后端和worker通过服务名`mongodb`连接，使用容器内部端口27017
+- **不受外部端口映射影响**
 
 **示例**：
+```yaml
+backend:
+  environment:
+    - MONGODB_URI=mongodb://mongodb:27017  # ✅ 容器间通信
+```
+
+### 2. 浏览器访问（前端 ↔ 后端）
+- **使用localhost和映射端口**
+- 前端代码在浏览器中执行，浏览器不在容器内
+- 浏览器需要通过宿主机端口访问后端
+- **必须使用映射端口**
+
+**示例**：
+```yaml
+frontend:
+  environment:
+    - VITE_API_BASE=http://localhost:${API_PORT:-8002}/api  # ✅ 浏览器访问
+```
+
+**总结**：
 - 设置 `MONGODB_PORT=27018` 后：
-  - 从宿主机访问：`mongodb://localhost:27018` ✅
-  - 容器间通信：`mongodb://mongodb:27017` ✅（后端和worker自动使用这个）
+  - 从宿主机访问MongoDB：`mongodb://localhost:27018` ✅
+  - 容器间通信（后端→MongoDB）：`mongodb://mongodb:27017` ✅（自动使用）
+- 设置 `API_PORT=8003` 后：
+  - 浏览器访问后端：`http://localhost:8003/api` ✅
+  - 容器间通信（如果需要）：`http://backend:8002` ✅（使用服务名和内部端口）
 
 ## 配置方式
 
