@@ -63,5 +63,6 @@ COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 ENV SOLVE_FIELD_BIN=/usr/bin/solve-field \
     ASTROMETRY_ENGINE_BIN=/usr/bin/astrometry-engine
 
-EXPOSE 8002
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8002"]
+EXPOSE 8000
+ENV API_PORT=8000
+CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${API_PORT:-8000}"]
