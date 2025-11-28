@@ -73,15 +73,15 @@ async def process_loop():
         except Exception as e:
             logger.warning("Failed to initialize public API key: %s", e)
         
-        # Check if solve-field tool is available on startup
-        is_available, error_msg = solver_bridge.check_solve_field_available()
+        # Check if astrometry tools are available on startup
+        is_available, error_msg = solver_bridge.check_tools_available()
         if not is_available:
             logger.warning(
-                "solve-field tool not available. Jobs will fail with helpful error messages.\n%s",
+                "Astrometry tools not available. Jobs will fail with helpful error messages.\n%s",
                 error_msg
             )
         else:
-            logger.info("solve-field tool is available and ready")
+            logger.info("Astrometry tools (augment-xylist, astrometry-engine) are available and ready")
         
         # Recover incomplete jobs on startup
         recovered = await recover_incomplete_jobs(db)

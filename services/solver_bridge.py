@@ -19,78 +19,117 @@ from services.wcs_utils import extract_calibration, parse_solver_stdout
 logger = logging.getLogger(__name__)
 
 
-def check_solve_field_available() -> tuple[bool, str]:
+def check_tools_available() -> tuple[bool, str]:
     """
-    Check if solve-field tool is available.
+    Check if augment-xylist (or solve-field) and astrometry-engine tools are available.
+    
+    First checks if the configured path exists, then falls back to PATH lookup.
+    If augment-xylist is not found, checks if solve-field is available as a fallback.
     
     Returns:
         Tuple of (is_available, error_message)
         If available, error_message is empty string.
-        If not available, error_message contains helpful installation instructions.
+        If not available, error_msg contains helpful installation instructions.
     """
-    solve_field_path = Path(settings.solve_field_bin)
+    missing_tools = []
     
-    # Check if file exists
-    if not solve_field_path.exists():
-        # Try to find it in PATH
-        found_in_path = shutil.which("solve-field")
-        if found_in_path:
-            return True, ""
-        
-        # Generate helpful error message
+    # Check augment-xylist or solve-field (fallback)
+    augment_xylist_path = Path(settings.augment_xylist_bin)
+    augment_xylist_found = augment_xylist_path.exists() or shutil.which("augment-xylist")
+    
+    if not augment_xylist_found:
+        # Check if solve-field is available as fallback
+        solve_field_path = Path(settings.solve_field_bin)
+        solve_field_found = solve_field_path.exists() or shutil.which("solve-field")
+        if not solve_field_found:
+            missing_tools.append(("augment-xylist or solve-field", settings.augment_xylist_bin, "AUGMENT_XYLIST_BIN or SOLVE_FIELD_BIN"))
+    
+    # Check astrometry-engine
+    engine_path = Path(settings.astrometry_engine_bin)
+    if not engine_path.exists():
+        found_in_path = shutil.which("astrometry-engine")
+        if not found_in_path:
+            missing_tools.append(("astrometry-engine", settings.astrometry_engine_bin, "ASTROMETRY_ENGINE_BIN"))
+    
+    if missing_tools:
+        tool_names = ", ".join(tool[0] for tool in missing_tools)
+        paths = "\n".join(f"  - {tool[0]}: {tool[1]}" for tool in missing_tools)
+        env_vars = ", ".join(tool[2] for tool in missing_tools)
         error_msg = (
-            f"The astrometry solver tool 'solve-field' is not found at {settings.solve_field_bin}.\n\n"
+            f"The astrometry tool(s) '{tool_names}' not found.\n\n"
+            f"Configured paths:\n{paths}\n\n"
             "Please install astrometry.net:\n"
             "  - macOS: brew install astrometry-net\n"
             "  - Linux: apt-get install astrometry.net\n"
-            "  - Or set SOLVE_FIELD_BIN environment variable to point to the correct path"
+            f"  - Or set {env_vars} environment variable(s) to point to the correct path(s)"
         )
-        return False, error_msg
-    
-    # Check if file is executable
-    if not solve_field_path.is_file():
-        error_msg = f"Path {settings.solve_field_bin} exists but is not a file"
         return False, error_msg
     
     return True, ""
 
 
-def _build_cli_args(source_path: Path, job_dir: Path, upload_args: dict[str, Any]) -> list[str]:
+def _get_tool_path(configured_path: str, tool_name: str) -> str:
+    """Get tool path, falling back to PATH lookup if configured path doesn't exist."""
+    path = Path(configured_path)
+    if path.exists():
+        return str(path)
+    # Fall back to PATH lookup
+    found = shutil.which(tool_name)
+    if found:
+        return found
+    # Return configured path anyway - error will be caught during execution
+    return configured_path
+
+
+def _build_augment_xylist_args(source_path: Path, job_dir: Path, upload_args: dict[str, Any]) -> list[str]:
+    """Build command-line arguments for augment-xylist.
+    
+    Uses solve-field --just-augment if augment-xylist is not available,
+    as some distributions package solve-field but not augment-xylist separately.
+    """
+    axy_path = job_dir / "job.axy"
     wcs_path = job_dir / "wcs.fits"
-    new_fits_path = job_dir / "new.fits"
     corr_path = job_dir / "corr.fits"
     rdls_path = job_dir / "rdls.fits"
-    match_path = job_dir / "match.fits"
-    solved_path = job_dir / "solved.txt"
-
-    args = [
-        settings.solve_field_bin,
-        str(source_path),
-        "--overwrite",
-        "--dir",
-        str(job_dir),
-        "--temp-dir",
-        str(job_dir),
-        "--index-dir",
-        str(settings.astrometry_index_dir),
-        "--wcs",
-        str(wcs_path),
-        "--new-fits",
-        str(new_fits_path),
-        "--corr",
-        str(corr_path),
-        "--rdls",
-        str(rdls_path),
-        "--match",
-        str(match_path),
-        "--solved",
-        str(solved_path),
-    ]
-
-    if getattr(settings, "enable_kmz", False):
-        kmz_path = job_dir / "sky.kmz"
-        args += ["--kmz", str(kmz_path)]
-
+    
+    # Resolve index directory to absolute path
+    index_dir = settings.astrometry_index_dir.resolve()
+    
+    # Try to use augment-xylist if available, otherwise fall back to solve-field --just-augment
+    augment_xylist_path = _get_tool_path(settings.augment_xylist_bin, "augment-xylist")
+    use_solve_field = False
+    
+    if not Path(augment_xylist_path).exists() and not shutil.which("augment-xylist"):
+        # Fall back to solve-field --just-augment
+        solve_field_path = _get_tool_path(settings.solve_field_bin, "solve-field")
+        if Path(solve_field_path).exists() or shutil.which("solve-field"):
+            use_solve_field = True
+            args = [
+                solve_field_path if Path(solve_field_path).exists() else "solve-field",
+                "--just-augment",
+                "--axy", str(axy_path),
+                "--dir", str(job_dir),
+                "--temp-dir", str(job_dir),
+                "--index-dir", str(index_dir.resolve()),  # Use absolute path for index directory
+                "--objs", "1000",  # Limit to 1000 sources for faster processing
+            ]
+        else:
+            # Neither available, use configured path (will fail with helpful error)
+            args = [augment_xylist_path]
+    else:
+        # Use augment-xylist
+        args = [
+            augment_xylist_path,
+            "--out", str(axy_path),
+            "--image", str(source_path),
+            "--wcs", str(wcs_path),
+            "--corr", str(corr_path),
+            "--rdls", str(rdls_path),
+            "--tag-all",
+            "--objs", "1000",
+        ]
+    
+    # Add common parameters (both augment-xylist and solve-field support these)
     scale_units = upload_args.get("scale_units")
     if scale_units:
         args += ["--scale-units", str(scale_units)]
@@ -104,12 +143,17 @@ def _build_cli_args(source_path: Path, job_dir: Path, upload_args: dict[str, Any
         args += ["--dec", str(upload_args["center_dec"])]
     if upload_args.get("radius"):
         args += ["--radius", str(upload_args["radius"])]
-    if upload_args.get("downsample_factor"):
-        args += ["--downsample", str(upload_args["downsample_factor"])]
+    # Default to downsample 2 if not specified (for faster processing)
+    downsample = upload_args.get("downsample_factor", 2)
+    args += ["--downsample", str(downsample)]
     if upload_args.get("positional_error"):
         args += ["--pixel-error", str(upload_args["positional_error"])]
-    if upload_args.get("tweak_order"):
-        args += ["--tweak-order", str(upload_args["tweak_order"])]
+    tweak_order = upload_args.get("tweak_order")
+    if tweak_order is not None:
+        if tweak_order == 0:
+            args += ["--no-tweak"]
+        else:
+            args += ["--tweak-order", str(tweak_order)]
     if upload_args.get("crpix_center"):
         args += ["--crpix-center"]
     if upload_args.get("invert"):
@@ -117,9 +161,42 @@ def _build_cli_args(source_path: Path, job_dir: Path, upload_args: dict[str, Any
     if upload_args.get("use_sextractor"):
         args += ["--use-source-extractor"]
     parity = upload_args.get("parity")
-    if parity:
+    if parity is not None:
         args += ["--parity", "pos" if int(parity) >= 0 else "neg"]
+    
+    # Add source image and output file specifications
+    if use_solve_field:
+        # For solve-field --just-augment, add output file options and source image
+        args += [
+            "--wcs", str(wcs_path),
+            "--corr", str(corr_path),
+            "--rdls", str(rdls_path),
+            str(source_path),
+        ]
+    else:
+        # For augment-xylist, just add source image
+        args += [str(source_path)]
+    
+    return args
 
+
+def _build_astrometry_engine_args(job_dir: Path, job_id: int) -> list[str]:
+    """Build command-line arguments for astrometry-engine."""
+    axy_path = job_dir / "job.axy"
+    solved_path = job_dir / "solved.txt"
+    
+    # Resolve index directory to absolute path
+    index_dir = settings.astrometry_index_dir.resolve()
+    
+    args = [
+        _get_tool_path(settings.astrometry_engine_bin, "astrometry-engine"),
+        "-v",  # verbose
+        "-I", str(index_dir.resolve()),  # index directory (absolute path)
+        "-s", str(solved_path),  # solved file
+        "-j", f"job-{job_id}",  # job ID (for logging)
+        str(axy_path),  # input axy file
+    ]
+    
     return args
 
 
@@ -128,11 +205,11 @@ async def solve_job(db: AsyncIOMotorDatabase, job_id: int, payload: dict[str, An
     job_dir = prepare_job_dir(job_id)
     state = StateManager(job_dir)
     
-    # Check if solve-field tool is available before starting
-    is_available, error_msg = check_solve_field_available()
+    # Check if tools are available before starting
+    is_available, error_msg = check_tools_available()
     if not is_available:
-        logger.error("solve-field tool not available for job %s: %s", job_id, error_msg)
-        state.update_stage(ProcessingStage.FAILED, "Astrometry solver tool not found", error=error_msg)
+        logger.error("Astrometry tools not available for job %s: %s", job_id, error_msg)
+        state.update_stage(ProcessingStage.FAILED, "Astrometry solver tools not found", error=error_msg)
         await job_service.update_job_status(
             db,
             job_id,
@@ -140,33 +217,32 @@ async def solve_job(db: AsyncIOMotorDatabase, job_id: int, payload: dict[str, An
             failure_reason=error_msg,
         )
         raise RuntimeError(error_msg)
-    
-    cli_args = _build_cli_args(source_path, job_dir, payload.get("upload_args", {}))
 
     # Initialize file system state
     state.update_stage(ProcessingStage.STARTED, "Job started, preparing...")
 
-    logger.info("Running solve-field for job %s", job_id)
-    state.update_stage(ProcessingStage.SOLVING, "Running solve-field...")
-
-    # Run solve-field with streaming output to log file
+    # Step 1: Run augment-xylist to create job.axy file
+    logger.info("Running augment-xylist for job %s", job_id)
+    state.update_stage(ProcessingStage.SOLVING, "Extracting sources with augment-xylist...")
+    
+    augment_args = _build_augment_xylist_args(source_path, job_dir, payload.get("upload_args", {}))
+    
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *cli_args,
+        augment_proc = await asyncio.create_subprocess_exec(
+            *augment_args,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,  # Merge stderr into stdout
+            stderr=asyncio.subprocess.STDOUT,
         )
     except FileNotFoundError as e:
-        # Handle case where solve-field is not found (even after check)
         error_msg = (
-            f"Failed to execute solve-field: {e}\n\n"
-            "The astrometry solver tool may not be installed or not in PATH.\n"
+            f"Failed to execute augment-xylist: {e}\n\n"
+            "The astrometry tool may not be installed or not in PATH.\n"
             "Please install astrometry.net:\n"
             "  - macOS: brew install astrometry-net\n"
             "  - Linux: apt-get install astrometry.net"
         )
-        logger.error("solve-field execution failed for job %s: %s", job_id, error_msg)
-        state.update_stage(ProcessingStage.FAILED, "Astrometry solver tool not found", error=error_msg)
+        logger.error("augment-xylist execution failed for job %s: %s", job_id, error_msg)
+        state.update_stage(ProcessingStage.FAILED, "augment-xylist not found", error=error_msg)
         await job_service.update_job_status(
             db,
             job_id,
@@ -175,32 +251,104 @@ async def solve_job(db: AsyncIOMotorDatabase, job_id: int, payload: dict[str, An
         )
         raise RuntimeError(error_msg) from e
 
-    # Stream output to log file
-    stdout_lines = []
+    # Stream augment-xylist output
+    augment_stdout_lines = []
     while True:
-        line = await proc.stdout.readline()
+        line = await augment_proc.stdout.readline()
         if not line:
             break
         decoded_line = line.decode("utf-8", errors="ignore")
-        stdout_lines.append(decoded_line)
+        augment_stdout_lines.append(decoded_line)
         state.append_log(decoded_line)
 
-    await proc.wait()
-    stdout_text = "".join(stdout_lines)
+    await augment_proc.wait()
+    augment_stdout_text = "".join(augment_stdout_lines)
 
-    if proc.returncode != 0:
-        error_msg = f"solve-field failed with exit code {proc.returncode}"
-        logger.error("solve-field failed for job %s: %s", job_id, stdout_text)
-        state.update_stage(ProcessingStage.FAILED, error_msg, error=stdout_text)
+    if augment_proc.returncode != 0:
+        error_msg = f"augment-xylist failed with exit code {augment_proc.returncode}"
+        logger.error("augment-xylist failed for job %s: %s", job_id, augment_stdout_text)
+        state.update_stage(ProcessingStage.FAILED, error_msg, error=augment_stdout_text)
         await job_service.update_job_status(
             db,
             job_id,
             JobStatus.failure,
-            failure_reason=stdout_text,
+            failure_reason=augment_stdout_text,
         )
-        raise RuntimeError(f"solve-field failed: {stdout_text}")
+        raise RuntimeError(f"augment-xylist failed: {augment_stdout_text}")
 
-    logger.info("solve-field job %s completed", job_id)
+    logger.info("augment-xylist completed for job %s", job_id)
+    
+    # Verify axy file was created
+    axy_path = job_dir / "job.axy"
+    if not axy_path.exists():
+        error_msg = f"augment-xylist completed but job.axy not found for job {job_id}"
+        logger.error(error_msg)
+        state.update_stage(ProcessingStage.FAILED, error_msg, error=error_msg)
+        await job_service.update_job_status(
+            db,
+            job_id,
+            JobStatus.failure,
+            failure_reason=error_msg,
+        )
+        raise RuntimeError(error_msg)
+
+    # Step 2: Run astrometry-engine to solve the field
+    logger.info("Running astrometry-engine for job %s", job_id)
+    state.update_stage(ProcessingStage.SOLVING, "Solving field with astrometry-engine...")
+    
+    engine_args = _build_astrometry_engine_args(job_dir, job_id)
+    
+    try:
+        engine_proc = await asyncio.create_subprocess_exec(
+            *engine_args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+    except FileNotFoundError as e:
+        error_msg = (
+            f"Failed to execute astrometry-engine: {e}\n\n"
+            "The astrometry tool may not be installed or not in PATH.\n"
+            "Please install astrometry.net:\n"
+            "  - macOS: brew install astrometry-net\n"
+            "  - Linux: apt-get install astrometry.net"
+        )
+        logger.error("astrometry-engine execution failed for job %s: %s", job_id, error_msg)
+        state.update_stage(ProcessingStage.FAILED, "astrometry-engine not found", error=error_msg)
+        await job_service.update_job_status(
+            db,
+            job_id,
+            JobStatus.failure,
+            failure_reason=error_msg,
+        )
+        raise RuntimeError(error_msg) from e
+
+    # Stream astrometry-engine output
+    engine_stdout_lines = []
+    while True:
+        line = await engine_proc.stdout.readline()
+        if not line:
+            break
+        decoded_line = line.decode("utf-8", errors="ignore")
+        engine_stdout_lines.append(decoded_line)
+        state.append_log(decoded_line)
+
+    await engine_proc.wait()
+    engine_stdout_text = "".join(engine_stdout_lines)
+    stdout_text = augment_stdout_text + "\n" + engine_stdout_text
+
+    if engine_proc.returncode != 0:
+        error_msg = f"astrometry-engine failed with exit code {engine_proc.returncode}"
+        logger.error("astrometry-engine failed for job %s: %s", job_id, engine_stdout_text)
+        state.update_stage(ProcessingStage.FAILED, error_msg, error=engine_stdout_text)
+        await job_service.update_job_status(
+            db,
+            job_id,
+            JobStatus.failure,
+            failure_reason=engine_stdout_text,
+        )
+        raise RuntimeError(f"astrometry-engine failed: {engine_stdout_text}")
+
+    logger.info("astrometry-engine completed for job %s", job_id)
 
     # Verify that essential files were created
     wcs_path = job_dir / "wcs.fits"

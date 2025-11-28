@@ -7,12 +7,24 @@ ENV PYTHONUNBUFFERED=1 \
 # Install system dependencies and astrometry.net CLI tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     astrometry.net \
+    astrometry-data-tycho2 \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# List installed astrometry tools for debugging
+RUN echo "Checking installed astrometry tools:" && \
+    dpkg -L astrometry.net | grep -E 'bin/|/usr/bin/' || true && \
+    ls -la /usr/bin/*astrometry* /usr/bin/*solve* /usr/bin/*augment* 2>/dev/null || true
+
 # Verify astrometry.net tools are installed and accessible
+# Note: Debian/Ubuntu package includes solve-field and astrometry-engine,
+# but not augment-xylist as a separate binary (it's part of solve-field)
 RUN solve-field --help > /dev/null 2>&1 || (echo "ERROR: solve-field not found after installation" && exit 1) && \
-    echo "✓ astrometry.net tools verified"
+    astrometry-engine --help > /dev/null 2>&1 || (echo "ERROR: astrometry-engine not found after installation" && exit 1) && \
+    echo "✓ astrometry.net tools verified" && \
+    echo "Installed tools:" && \
+    which solve-field astrometry-engine && \
+    echo "Note: augment-xylist functionality is available via solve-field --just-augment"
 
 # Install uv
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
@@ -61,6 +73,7 @@ COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 # Set default astrometry.net binary paths (can be overridden via environment variables)
 # These binaries are installed via apt-get in /usr/bin/
 ENV SOLVE_FIELD_BIN=/usr/bin/solve-field \
+    AUGMENT_XYLIST_BIN=/usr/bin/augment-xylist \
     ASTROMETRY_ENGINE_BIN=/usr/bin/astrometry-engine
 
 EXPOSE 8000

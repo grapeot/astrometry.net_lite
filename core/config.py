@@ -23,9 +23,9 @@ class AppSettings(BaseSettings):
     queue_visibility_timeout_seconds: int = 300
     enable_kmz: bool = False
 
-    solve_field_bin: str = "/opt/homebrew/bin/solve-field"
-    augment_xylist_bin: str = "/opt/homebrew/bin/augment-xylist"
-    astrometry_engine_bin: str = "/opt/homebrew/bin/astrometry-engine"
+    solve_field_bin: str = "/usr/bin/solve-field"  # Default to Linux path, override for macOS
+    augment_xylist_bin: str = "/usr/bin/augment-xylist"  # Default to Linux path, override for macOS
+    astrometry_engine_bin: str = "/usr/bin/astrometry-engine"  # Default to Linux path, override for macOS
 
     api_host: str = "127.0.0.1"
     api_port: int = 8002
