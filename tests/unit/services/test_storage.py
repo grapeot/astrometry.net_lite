@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch, mock_open
 
+import pytest
 
 from services import storage
 
@@ -106,3 +107,103 @@ class TestCopyToJob:
 
         # Verify the target name was used
         mock_job_dir.__truediv__.assert_called_with("renamed.jpg")
+
+
+class TestSanitizeFilename:
+    """Tests for sanitize_filename function."""
+
+    def test_removes_query_parameters(self):
+        """Test that query parameters are removed from filename."""
+        result = storage.sanitize_filename("image.jpg?param=value&other=123")
+        assert result == "image.jpg"
+
+    def test_url_decodes_filename(self):
+        """Test that URL-encoded filenames are decoded."""
+        result = storage.sanitize_filename("file%20name.jpg")
+        assert result == "file_name.jpg"
+
+    def test_removes_special_characters(self):
+        """Test that special characters are replaced with underscores."""
+        result = storage.sanitize_filename("file name@test#123.jpg")
+        assert result == "file_name_test_123.jpg"
+
+    def test_removes_multiple_underscores(self):
+        """Test that multiple consecutive underscores are collapsed."""
+        result = storage.sanitize_filename("file___name.jpg")
+        assert result == "file_name.jpg"
+
+    def test_preserves_extension_when_truncating(self):
+        """Test that file extension is preserved when truncating long filenames."""
+        long_name = "a" * 250 + ".jpg"
+        result = storage.sanitize_filename(long_name, max_length=200)
+        assert result.endswith(".jpg")
+        assert len(result) == 200
+
+    def test_handles_very_long_extension(self):
+        """Test handling of filenames with very long extensions."""
+        long_ext = "file." + "x" * 250
+        result = storage.sanitize_filename(long_ext, max_length=200)
+        assert len(result) == 200
+
+    def test_handles_empty_filename(self):
+        """Test that empty filename is replaced with default."""
+        result = storage.sanitize_filename("")
+        assert result == "upload"
+
+    def test_handles_dot_filename(self):
+        """Test that '.' filename is replaced with default."""
+        result = storage.sanitize_filename(".")
+        assert result == "upload"
+
+    def test_handles_dotdot_filename(self):
+        """Test that '..' filename is replaced with default."""
+        result = storage.sanitize_filename("..")
+        assert result == "upload"
+
+    def test_handles_complex_url_with_query_params(self):
+        """Test handling of complex URL with query parameters."""
+        filename = "R.a5ca20d0d229c783044bb7ad9ac830b9?rik=VGDB9cj0MZfbdg&riu=http%3a%2f%2fwww.astronomersdoitinthedark.com%2fimages%2fproduct%2fimages%2fM42-HH-200-450D-NoFilt-1600-2013-02-09--72x180--2048x.jpg&ehk=HxRyxMNEKHeh75XzkQj6531oNuzsWPnlgKul7ZTjkL8%3d&risl=&pid=ImgRaw&r=0"
+        result = storage.sanitize_filename(filename)
+        assert "?" not in result
+        assert len(result) <= 200
+        assert result.startswith("R.a5ca20d0d229c783044bb7ad9ac830b9")
+
+    def test_preserves_valid_characters(self):
+        """Test that valid characters (alphanumeric, dots, hyphens, underscores) are preserved."""
+        result = storage.sanitize_filename("test-file_123.456.jpg")
+        assert result == "test-file_123.456.jpg"
+
+    def test_custom_max_length(self):
+        """Test that custom max_length parameter works."""
+        long_name = "a" * 300 + ".jpg"
+        result = storage.sanitize_filename(long_name, max_length=100)
+        assert len(result) == 100
+        assert result.endswith(".jpg")
+
+
+class TestSaveUploadFileWithSanitization:
+    """Tests for save_upload_file function with filename sanitization."""
+
+    @patch("services.storage.settings")
+    @patch("services.storage.ensure_directories")
+    @patch("builtins.open", new_callable=mock_open)
+    def test_sanitizes_filename_before_saving(
+        self,
+        mock_file: MagicMock,
+        mock_ensure: MagicMock,
+        mock_settings: MagicMock,
+    ):
+        """Test that filename is sanitized before saving."""
+        mock_settings.upload_cache_dir = Path("/data/uploads")
+
+        result = storage.save_upload_file("test file@name.jpg?param=value", b"fake data")
+
+        # Should save with sanitized filename
+        assert "?" not in str(result)
+        assert "@" not in str(result)
+        mock_file.assert_called_once()
+        # Verify the saved filename is sanitized
+        call_args = mock_file.call_args[0]
+        saved_path = call_args[0]
+        assert "?" not in str(saved_path)
+        assert "@" not in str(saved_path)

@@ -204,3 +204,95 @@ class TestListSubmissionJobs:
         result = await submission_service.list_submission_jobs(mock_db, str(ObjectId()))
 
         assert result == []
+
+
+class TestEnsurePublicApiKey:
+    """Tests for ensure_public_api_key function."""
+
+    async def test_creates_public_api_key_if_not_exists(self, mock_db: AsyncMock):
+        """Test that public API key is created if it doesn't exist."""
+        mock_collection = AsyncMock()
+        mock_collection.find_one.return_value = None
+        mock_collection.insert_one.return_value = None
+        mock_db.__getitem__.return_value = mock_collection
+
+        await submission_service.ensure_public_api_key(mock_db)
+
+        mock_collection.find_one.assert_called_once_with({"apikey": submission_service.PUBLIC_API_KEY})
+        mock_collection.insert_one.assert_called_once()
+        call_args = mock_collection.insert_one.call_args[0][0]
+        assert call_args["apikey"] == submission_service.PUBLIC_API_KEY
+        assert call_args["priority"] == submission_service.PUBLIC_API_KEY_PRIORITY
+        assert call_args["is_system"] is True
+        assert call_args["enabled"] is True
+
+    async def test_updates_priority_if_exists(self, mock_db: AsyncMock):
+        """Test that priority is updated if public API key already exists."""
+        mock_collection = AsyncMock()
+        mock_collection.find_one.return_value = {"apikey": submission_service.PUBLIC_API_KEY}
+        mock_collection.update_one.return_value = None
+        mock_db.__getitem__.return_value = mock_collection
+
+        await submission_service.ensure_public_api_key(mock_db)
+
+        mock_collection.find_one.assert_called_once()
+        mock_collection.insert_one.assert_not_called()
+        mock_collection.update_one.assert_called_once()
+        call_args = mock_collection.update_one.call_args
+        assert call_args[0][0] == {"apikey": submission_service.PUBLIC_API_KEY}
+        assert call_args[0][1]["$set"]["priority"] == submission_service.PUBLIC_API_KEY_PRIORITY
+        assert call_args[0][1]["$set"]["is_system"] is True
+
+
+class TestGetApiKeyPriority:
+    """Tests for get_api_key_priority function."""
+
+    async def test_returns_public_priority_for_public_key(self, mock_db: AsyncMock):
+        """Test that public API key returns public priority."""
+        mock_collection = AsyncMock()
+        mock_collection.find_one.return_value = {"apikey": submission_service.PUBLIC_API_KEY, "priority": 100}
+        mock_db.__getitem__.return_value = mock_collection
+
+        result = await submission_service.get_api_key_priority(mock_db, submission_service.PUBLIC_API_KEY)
+
+        assert result == 100
+
+    async def test_returns_public_priority_fallback_when_not_in_db(self, mock_db: AsyncMock):
+        """Test that public API key returns fallback priority when not in database."""
+        mock_collection = AsyncMock()
+        mock_collection.find_one.return_value = None
+        mock_db.__getitem__.return_value = mock_collection
+
+        result = await submission_service.get_api_key_priority(mock_db, submission_service.PUBLIC_API_KEY)
+
+        assert result == submission_service.PUBLIC_API_KEY_PRIORITY
+
+    async def test_returns_priority_for_regular_key(self, mock_db: AsyncMock):
+        """Test that regular API key returns its priority from database."""
+        mock_collection = AsyncMock()
+        mock_collection.find_one.return_value = {"apikey": "regular_key", "priority": 50}
+        mock_db.__getitem__.return_value = mock_collection
+
+        result = await submission_service.get_api_key_priority(mock_db, "regular_key")
+
+        assert result == 50
+
+    async def test_returns_normal_priority_for_unknown_key(self, mock_db: AsyncMock):
+        """Test that unknown API key returns normal priority."""
+        mock_collection = AsyncMock()
+        mock_collection.find_one.return_value = None
+        mock_db.__getitem__.return_value = mock_collection
+
+        result = await submission_service.get_api_key_priority(mock_db, "unknown_key")
+
+        assert result == submission_service.PRIORITY_NORMAL
+
+    async def test_returns_normal_priority_when_no_priority_field(self, mock_db: AsyncMock):
+        """Test that API key without priority field returns normal priority."""
+        mock_collection = AsyncMock()
+        mock_collection.find_one.return_value = {"apikey": "regular_key"}
+        mock_db.__getitem__.return_value = mock_collection
+
+        result = await submission_service.get_api_key_priority(mock_db, "regular_key")
+
+        assert result == submission_service.PRIORITY_NORMAL
