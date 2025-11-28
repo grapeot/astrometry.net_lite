@@ -104,7 +104,7 @@ function App() {
       }
       setJobs(rows)
     } catch {
-      setMessage('Failed to fetch job list')
+        setMessage('Unable to load job list. Please refresh and try again.')
     } finally {
       setLoading(false)
     }
@@ -134,7 +134,7 @@ function App() {
         setMessage(res.errormessage ?? 'Upload failed')
       }
     } catch {
-      setMessage('Upload error')
+        setMessage('Upload failed. Please check your file and try again.')
     } finally {
       setUploading(false)
     }

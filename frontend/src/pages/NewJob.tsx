@@ -89,7 +89,7 @@ export function NewJob() {
         setError(result.errormessage ?? 'Submission failed');
       }
     } catch {
-      setError('Submission error, please try again later');
+        setError('Submission failed. Please check your image URL or file and try again.');
     } finally {
       setLoading(false);
     }

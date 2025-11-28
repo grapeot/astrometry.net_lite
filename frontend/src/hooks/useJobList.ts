@@ -28,7 +28,7 @@ export function useJobList(initialLimit: number = 20) {
       setHasNext(data.pagination?.has_next ?? false);
       setPage(pageNum);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load jobs');
+      setError(err instanceof Error ? err.message : 'Unable to load jobs. Please refresh the page and try again.');
     } finally {
       setLoading(false);
     }

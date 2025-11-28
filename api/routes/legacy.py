@@ -40,7 +40,7 @@ async def _parse_request_payload(request: Request) -> tuple[dict[str, Any], dict
             data = form.get("request-json")
             if data is None:
                 logger.warning("request-json not found in form. Available fields: %s", list(form.keys()))
-                raise HTTPException(status_code=400, detail="missing request-json")
+                raise HTTPException(status_code=400, detail="Missing required request data")
             
             data_str = str(data)
             logger.debug("request-json content: %s", data_str[:200])
@@ -52,10 +52,10 @@ async def _parse_request_payload(request: Request) -> tuple[dict[str, Any], dict
             raise
         except json.JSONDecodeError as e:
             logger.error("Failed to parse request-json: %s", e)
-            raise HTTPException(status_code=400, detail=f"invalid JSON in request-json: {e}")
+            raise HTTPException(status_code=400, detail="Invalid request format. Please check your request data.")
         except Exception as parse_error:  # noqa: BLE001
             logger.error("Form-urlencoded parsing failed: %s", parse_error, exc_info=True)
-            raise HTTPException(status_code=400, detail=f"failed to parse form data: {str(parse_error)}")
+            raise HTTPException(status_code=400, detail="Unable to process request data. Please check the format.")
     elif "multipart/form-data" in content_type:
         # Check if this is the non-standard client format (boundary with many = signs)
         is_client_format = "boundary=" in content_type and "===============" in content_type
@@ -71,7 +71,7 @@ async def _parse_request_payload(request: Request) -> tuple[dict[str, Any], dict
                 boundary_match = re.search(r'boundary=["\']?([^"\';]+)["\']?', content_type)
                 
                 if not boundary_match:
-                    raise HTTPException(status_code=400, detail="could not extract boundary from Content-Type")
+                    raise HTTPException(status_code=400, detail="Invalid file upload format")
                 
                 boundary = boundary_match.group(1)
                 logger.debug("Extracted boundary: %s", boundary)
@@ -134,7 +134,7 @@ async def _parse_request_payload(request: Request) -> tuple[dict[str, Any], dict
                             logger.debug("Parsed request-json: %s", list(payload.keys()))
                         except json.JSONDecodeError as e:
                             logger.error("Failed to parse request-json: %s", e)
-                            raise HTTPException(status_code=400, detail=f"invalid JSON in request-json: {e}")
+                            raise HTTPException(status_code=400, detail="Invalid request format. Please check your request data.")
                     elif field_name == "file" and filename:
                         # Create a temporary UploadFile-like object
                         from io import BytesIO
@@ -158,10 +158,10 @@ async def _parse_request_payload(request: Request) -> tuple[dict[str, Any], dict
                 raise
             except json.JSONDecodeError as e:
                 logger.error("Failed to parse request-json: %s", e)
-                raise HTTPException(status_code=400, detail=f"invalid JSON in request-json: {e}")
+                raise HTTPException(status_code=400, detail="Invalid request format. Please check your request data.")
             except Exception as e:  # noqa: BLE001
                 logger.error("Error parsing multipart form: %s", e, exc_info=True)
-                raise HTTPException(status_code=500, detail=f"upload failed: {str(e)}")
+                raise HTTPException(status_code=500, detail="Upload failed. Please try again.")
         else:
             # Standard multipart format - use FastAPI's built-in parser
             try:
@@ -196,10 +196,10 @@ async def _parse_request_payload(request: Request) -> tuple[dict[str, Any], dict
                 raise
             except json.JSONDecodeError as e:
                 logger.error("Failed to parse request-json: %s", e)
-                raise HTTPException(status_code=400, detail=f"invalid JSON in request-json: {e}")
+                raise HTTPException(status_code=400, detail="Invalid request format. Please check your request data.")
             except Exception as parse_error:  # noqa: BLE001
                 logger.error("Standard multipart parsing failed: %s", parse_error, exc_info=True)
-                raise HTTPException(status_code=400, detail=f"failed to parse form data: {str(parse_error)}")
+                raise HTTPException(status_code=400, detail="Unable to process request data. Please check the format.")
     elif "application/json" in content_type:
         payload = await request.json()
     else:
@@ -222,7 +222,7 @@ async def login(request: Request, db: AsyncIOMotorDatabase = Depends(get_db)):
         logger.debug("Login payload: %s", payload)
         apikey = payload.get("apikey")
         if not apikey:
-            return _legacy_error('need "apikey"')
+            return _legacy_error('Please provide an API key')
         # Public API key is always valid, other keys need validation
         if apikey != submission_service.PUBLIC_API_KEY:
             valid = await submission_service.validate_api_key(db, apikey)
@@ -231,7 +231,7 @@ async def login(request: Request, db: AsyncIOMotorDatabase = Depends(get_db)):
         return {"status": "success", "session": apikey, "message": "authenticated"}
     except Exception as e:  # noqa: BLE001
         logger.error("Error in login endpoint: %s", e, exc_info=True)
-        return _legacy_error(f"login failed: {str(e)}")
+        return _legacy_error("Login failed. Please check your API key and try again.")
 
 
 @router.post("/upload")
@@ -241,14 +241,14 @@ async def upload(request: Request, db: AsyncIOMotorDatabase = Depends(get_db)):
         logger.debug("Upload payload keys: %s, files keys: %s", list(payload.keys()), list(files.keys()))
         apikey = payload.get("apikey") or payload.get("session")
         if not apikey:
-            return _legacy_error("need session")
+            return _legacy_error("Please login first")
         # Public API key is always valid, other keys need validation
         if apikey != submission_service.PUBLIC_API_KEY and not await submission_service.validate_api_key(db, apikey):
             return _legacy_error("Invalid API key. Please check your API key and try again.")
         upload_file = files.get("file")
         if upload_file is None:
             logger.warning("No file in upload request. Files: %s", list(files.keys()))
-            return _legacy_error("missing file")
+            return _legacy_error("Please select a file to upload")
         raw = await upload_file.read()
         result = await submission_service.create_submission(
             db,
@@ -260,7 +260,7 @@ async def upload(request: Request, db: AsyncIOMotorDatabase = Depends(get_db)):
         return result
     except Exception as exc:  # noqa: BLE001
         logger.error("Error in upload endpoint: %s", exc, exc_info=True)
-        return _legacy_error(f"upload failed: {str(exc)}")
+        return _legacy_error("Upload failed. Please check your file and try again.")
 
 
 @router.post("/url_upload")
@@ -338,7 +338,7 @@ async def job_status(job_id: int, db: AsyncIOMotorDatabase = Depends(get_db)):
 
 def _ensure_job(job: Job | None, job_id: int) -> Job:
     if not job:
-        raise HTTPException(status_code=404, detail=f"job {job_id} not found")
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
     return job
 
 
@@ -443,7 +443,7 @@ def _get_artifact_filename(artifact_type: ArtifactType) -> str:
 async def _artifact_response(job_id: int, artifact_type: ArtifactType, db: AsyncIOMotorDatabase) -> FileResponse:
     job = await job_service.get_job_by_job_id(db, job_id)
     if not job:
-        raise HTTPException(status_code=404, detail="job not found")
+        raise HTTPException(status_code=404, detail="Job not found")
     
     # Get default filename for this artifact type
     default_filename = _get_artifact_filename(artifact_type)
@@ -481,7 +481,7 @@ async def _artifact_response(job_id: int, artifact_type: ArtifactType, db: Async
     if not path.exists():
         raise HTTPException(
             status_code=404,
-            detail=f"file not ready: {path} (job_id={job_id}, type={artifact_type.value}, artifacts={artifacts}, job_output_dir={job_output_dir})"
+            detail="File not available yet. The job may still be processing. Please try again later."
         )
     
     media_type = "application/fits"
@@ -511,12 +511,12 @@ async def corr_file(job_id: int, db: AsyncIOMotorDatabase = Depends(get_db)):
 async def kml_file(job_id: int, db: AsyncIOMotorDatabase = Depends(get_db)):
     job = await job_service.get_job_by_job_id(db, job_id)
     if not job:
-        raise HTTPException(status_code=404, detail="job not found")
+        raise HTTPException(status_code=404, detail="Job not found")
     artifacts = job.artifacts or {}
     rel = artifacts.get(ArtifactType.kml.value)
     path = Path(rel) if rel else settings.job_output_dir / str(job_id) / "sky.kmz"
     if not path.exists():
-        raise HTTPException(status_code=404, detail="kml not ready")
+        raise HTTPException(status_code=404, detail="KML file not available yet. The job may still be processing.")
     return FileResponse(path, media_type="application/vnd.google-earth.kmz", filename=path.name)
 
 
@@ -524,7 +524,7 @@ async def kml_file(job_id: int, db: AsyncIOMotorDatabase = Depends(get_db)):
 async def annotated_display(job_id: int, db: AsyncIOMotorDatabase = Depends(get_db)):
     job = await job_service.get_job_by_job_id(db, job_id)
     if not job:
-        raise HTTPException(status_code=404, detail="job not found")
+        raise HTTPException(status_code=404, detail="Job not found")
     annotations_path = job.artifacts.get(ArtifactType.annotated.value) if job.artifacts else None
     if annotations_path:
         path = Path(annotations_path)
@@ -550,7 +550,7 @@ async def annotated_display(job_id: int, db: AsyncIOMotorDatabase = Depends(get_
                 path = path.resolve()
     
     if not path.exists():
-        raise HTTPException(status_code=404, detail="annotated image not ready")
+        raise HTTPException(status_code=404, detail="Annotated image not available yet. The job may still be processing.")
     
     # Determine media type based on file extension
     media_type = "image/png"

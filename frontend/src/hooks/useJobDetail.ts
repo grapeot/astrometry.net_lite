@@ -19,7 +19,7 @@ export function useJobDetail(jobId: number) {
       const data = await fetchJobDetail(jobId);
       setJob(data.job);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load job');
+      setError(err instanceof Error ? err.message : 'Unable to load job details. Please try again.');
     } finally {
       setLoading(false);
     }
