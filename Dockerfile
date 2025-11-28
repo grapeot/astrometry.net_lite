@@ -10,6 +10,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Verify astrometry.net tools are installed and accessible
+RUN solve-field --help > /dev/null 2>&1 || (echo "ERROR: solve-field not found after installation" && exit 1) && \
+    echo "✓ astrometry.net tools verified"
+
 # Install uv
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
     export PATH="/root/.local/bin:$PATH" && \

@@ -56,6 +56,47 @@ else
     echo "   ✓ MongoDB already installed"
 fi
 
+# Check for astrometry.net
+echo "📦 Checking astrometry.net installation..."
+if ! command -v solve-field >/dev/null 2>&1; then
+    echo "   ⚠️  astrometry.net not found. This is required for processing jobs."
+    
+    # Detect OS
+    OS="$(uname -s)"
+    case "$OS" in
+        Darwin)
+            # macOS
+            if command -v brew >/dev/null 2>&1; then
+                echo "   Installing astrometry.net via Homebrew..."
+                brew install astrometry-net
+                echo "   ✓ astrometry.net installed"
+            else
+                echo "   ⚠️  Homebrew not found. Please install astrometry.net manually:"
+                echo "      brew install astrometry-net"
+                echo ""
+                echo "   Note: Jobs will fail until astrometry.net is installed."
+            fi
+            ;;
+        Linux)
+            echo "   ⚠️  Please install astrometry.net manually:"
+            echo "      sudo apt-get install astrometry.net"
+            echo ""
+            echo "   Or use Docker Compose which includes astrometry.net:"
+            echo "      docker-compose up"
+            echo ""
+            echo "   Note: Jobs will fail until astrometry.net is installed."
+            ;;
+        *)
+            echo "   ⚠️  Please install astrometry.net manually:"
+            echo "      https://astrometry.net/install.html"
+            echo ""
+            echo "   Note: Jobs will fail until astrometry.net is installed."
+            ;;
+    esac
+else
+    echo "   ✓ astrometry.net already installed"
+fi
+
 # Setup Python virtual environment
 echo "📦 Setting up Python virtual environment..."
 VENV_DIR="$PROJECT_ROOT/venv"
