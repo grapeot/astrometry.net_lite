@@ -21,7 +21,7 @@ services:
       dockerfile: Dockerfile
     container_name: astrometry-backend-prod
     ports:
-      - "8020:8002"
+      - "8020:8000"
     volumes:
       # 生产环境只挂载数据目录，不挂载代码
       - ./data:/app/data
@@ -31,7 +31,7 @@ services:
       - MONGODB_URI=mongodb://mongodb:27017
       - MONGODB_DBNAME=astrometry_dev
       - API_HOST=0.0.0.0
-      - API_PORT=8002
+      - API_PORT=8000
     depends_on:
       - mongodb
     networks:

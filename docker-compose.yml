@@ -25,7 +25,7 @@ services:
       dockerfile: Dockerfile
     container_name: astrometry-backend
     ports:
-      - "8020:8002"
+      - "8020:8000"
     volumes:
       - ./data:/app/data
       - ./astrometry_indexes:/app/astrometry_indexes
@@ -40,14 +40,14 @@ services:
       - MONGODB_URI=mongodb://mongodb:27017
       - MONGODB_DBNAME=astrometry_dev
       - API_HOST=0.0.0.0
-      - API_PORT=8002
+      - API_PORT=8000
     depends_on:
       - mongodb
     networks:
       - astrometry-network
     restart: unless-stopped
     # 使用 --reload 启用自动重载
-    command: uvicorn api.main:app --host 0.0.0.0 --port 8002 --reload
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
   frontend:
     image: astrometry-frontend:latest
