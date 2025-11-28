@@ -44,10 +44,11 @@ function App() {
   const [message, setMessage] = useState<string | null>(null)
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null)
   const [jobDetails, setJobDetails] = useState<Record<number, JobDetails>>({})
+  const [hasLoggedOut, setHasLoggedOut] = useState(false)
 
-  // Auto-login with public API key if no session exists
+  // Auto-login with public API key if no session exists (only on mount, not after logout)
   useEffect(() => {
-    if (!session) {
+    if (!session && !hasLoggedOut) {
       const autoLogin = async () => {
         try {
           const res = await login(PUBLIC_API_KEY)
@@ -61,7 +62,7 @@ function App() {
       }
       void autoLogin()
     }
-  }, [session])
+  }, [session, hasLoggedOut])
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -71,6 +72,7 @@ function App() {
       const res = await login(apiKey.trim())
       if (res.status === 'success' && res.session) {
         setSession(res.session)
+        setHasLoggedOut(false) // Reset logout flag on successful login
         // Save to localStorage
         localStorage.setItem(SESSION_STORAGE_KEY, res.session)
       } else {
@@ -88,6 +90,7 @@ function App() {
     setApiKey('')
     setJobs([])
     setJobDetails({})
+    setHasLoggedOut(true) // Mark that user explicitly logged out
     // Clear localStorage
     localStorage.removeItem(SESSION_STORAGE_KEY)
   }

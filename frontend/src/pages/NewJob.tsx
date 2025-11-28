@@ -16,10 +16,11 @@ export function NewJob() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasLoggedOut, setHasLoggedOut] = useState(false);
 
-  // Auto-login with public API key if no session exists
+  // Auto-login with public API key if no session exists (only on mount, not after logout)
   useEffect(() => {
-    if (!session) {
+    if (!session && !hasLoggedOut) {
       const autoLogin = async () => {
         try {
           const res = await login(PUBLIC_API_KEY);
@@ -33,7 +34,7 @@ export function NewJob() {
       };
       void autoLogin();
     }
-  }, [session]);
+  }, [session, hasLoggedOut]);
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
@@ -43,6 +44,7 @@ export function NewJob() {
       const res = await login(apiKey.trim());
       if (res.status === 'success' && res.session) {
         setSession(res.session);
+        setHasLoggedOut(false); // Reset logout flag on successful login
         localStorage.setItem(SESSION_STORAGE_KEY, res.session);
       } else {
         setError(res.errormessage ?? 'Login failed');
@@ -141,6 +143,7 @@ export function NewJob() {
               onClick={() => {
                 setSession(null);
                 setApiKey('');
+                setHasLoggedOut(true);
                 localStorage.removeItem(SESSION_STORAGE_KEY);
               }}
               style={{
