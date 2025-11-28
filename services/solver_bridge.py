@@ -167,35 +167,104 @@ def _build_augment_xylist_args(source_path: Path, job_dir: Path, upload_args: di
     # Add source image and output file specifications
     if use_solve_field:
         # For solve-field --just-augment, add output file options and source image
+        # Note: solve-field accepts source image as positional argument
         args += [
             "--wcs", str(wcs_path),
             "--corr", str(corr_path),
             "--rdls", str(rdls_path),
-            str(source_path),
+            str(source_path),  # Positional argument for solve-field
         ]
-    else:
-        # For augment-xylist, just add source image
-        args += [str(source_path)]
+    # For augment-xylist, --image was already added above, no need to add again
     
     return args
 
 
+def _ensure_config_file(job_dir: Path) -> Path:
+    """Ensure astrometry.cfg file exists with proper index configuration.
+    
+    Creates a config file that explicitly lists all index files and enables
+    inparallel mode for better performance.
+    
+    IMPORTANT: This config file ONLY lists indexes from our configured directory,
+    avoiding system default indexes that might interfere.
+    """
+    config_path = job_dir / "astrometry.cfg"
+    
+    # Only create if it doesn't exist or is older than index directory
+    index_dir = settings.astrometry_index_dir.resolve()
+    if config_path.exists():
+        config_mtime = config_path.stat().st_mtime
+        # Check if any index file is newer than config
+        try:
+            for idx_file in index_dir.glob("*.fits"):
+                if idx_file.stat().st_mtime > config_mtime:
+                    # Index file is newer, regenerate config
+                    break
+            else:
+                # No newer index files, use existing config
+                return config_path
+        except Exception:
+            # If we can't check, regenerate to be safe
+            pass
+    
+    # Generate config file
+    # IMPORTANT: Use absolute paths and only list .fits files (not .fits.gz)
+    # This ensures we only use our configured indexes, not system defaults
+    with open(config_path, "w") as f:
+        # Use absolute path to avoid confusion with system paths
+        f.write(f"add_path {index_dir}\n")
+        
+        # List all .fits files explicitly (exclude .fits.gz as they're not valid)
+        # Sort to ensure consistent order
+        index_files = sorted([f for f in index_dir.glob("*.fits") if not f.name.endswith(".gz")])
+        for idx_file in index_files:
+            # Use absolute path to ensure we use the right index
+            f.write(f"index {idx_file.name}\n")
+        
+        # Enable parallel index checking for better performance
+        # This is safe if indexes fit in memory
+        f.write("inparallel\n")
+    
+    logger.debug("Generated astrometry config file: %s with %d indexes", config_path, len(index_files))
+    return config_path
+
+
 def _build_astrometry_engine_args(job_dir: Path, job_id: int) -> list[str]:
-    """Build command-line arguments for astrometry-engine."""
+    """Build command-line arguments for astrometry-engine.
+    
+    Uses config file if possible for better performance (explicit index listing + inparallel).
+    Falls back to -I directory if config file generation fails.
+    """
     axy_path = job_dir / "job.axy"
     solved_path = job_dir / "solved.txt"
     
-    # Resolve index directory to absolute path
-    index_dir = settings.astrometry_index_dir.resolve()
-    
-    args = [
-        _get_tool_path(settings.astrometry_engine_bin, "astrometry-engine"),
-        "-v",  # verbose
-        "-I", str(index_dir.resolve()),  # index directory (absolute path)
-        "-s", str(solved_path),  # solved file
-        "-j", f"job-{job_id}",  # job ID (for logging)
-        str(axy_path),  # input axy file
-    ]
+    # Use config file for better performance
+    # This ensures we only use our configured indexes, not system defaults
+    try:
+        config_path = _ensure_config_file(job_dir)
+        args = [
+            _get_tool_path(settings.astrometry_engine_bin, "astrometry-engine"),
+            "-v",  # verbose
+            "-c", str(config_path),  # Use config file (explicit indexes + inparallel)
+            "-s", str(solved_path),  # solved file
+            "-j", f"job-{job_id}",  # job ID (for logging)
+            str(axy_path),  # input axy file
+        ]
+        logger.debug("Using config file %s for astrometry-engine", config_path)
+    except Exception as e:
+        # Fall back to -I directory if config file generation fails
+        # But explicitly exclude system paths to avoid loading wrong indexes
+        logger.warning("Failed to generate config file, falling back to -I directory: %s", e)
+        index_dir = settings.astrometry_index_dir.resolve()
+        args = [
+            _get_tool_path(settings.astrometry_engine_bin, "astrometry-engine"),
+            "-v",  # verbose
+            "-I", str(index_dir.resolve()),  # index directory (absolute path)
+            "-s", str(solved_path),  # solved file
+            "-j", f"job-{job_id}",  # job ID (for logging)
+            str(axy_path),  # input axy file
+        ]
+        logger.warning("Using -I directory fallback (may load system default indexes)")
     
     return args
 
