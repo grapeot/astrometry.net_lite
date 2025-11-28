@@ -1,0 +1,65 @@
+name: astrometry
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: astrometry-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./mongodb_data:/data/db
+      - ./mongodb.log:/var/log/mongodb/mongodb.log
+    environment:
+      - MONGO_INITDB_DATABASE=astrometry_dev
+    command: mongod --logpath /var/log/mongodb/mongodb.log --logappend
+    networks:
+      - astrometry-network
+    restart: unless-stopped
+
+  backend:
+    image: astrometry-backend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: astrometry-backend
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./data:/app/data
+      - ./astrometry_indexes:/app/astrometry_indexes
+      - ./catalogs:/app/catalogs
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DBNAME=astrometry_dev
+      - API_HOST=0.0.0.0
+      - API_PORT=8002
+    depends_on:
+      - mongodb
+    networks:
+      - astrometry-network
+    restart: unless-stopped
+
+  frontend:
+    image: astrometry-frontend:latest
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: astrometry-frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_BASE=http://localhost:8002
+    depends_on:
+      - backend
+    networks:
+      - astrometry-network
+    restart: unless-stopped
+    command: npm run dev -- --host 0.0.0.0
+
+networks:
+  astrometry-network:
+    driver: bridge
+
