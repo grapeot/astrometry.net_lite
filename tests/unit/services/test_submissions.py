@@ -24,7 +24,7 @@ class TestValidateApiKey:
         result = await submission_service.validate_api_key(mock_db, "valid_key")
 
         assert result is True
-        mock_collection.find_one.assert_called_once_with({"apikey": "valid_key"})
+        mock_collection.find_one.assert_called_once_with({"apikey": "valid_key", "enabled": {"$ne": False}})
 
     async def test_returns_false_for_invalid_key(self, mock_db: AsyncMock):
         """Test that invalid API key returns False."""
