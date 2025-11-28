@@ -80,7 +80,7 @@ class TestLoginEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "error"
-        assert "apikey" in data["errormessage"]
+        assert "API key" in data["errormessage"]
 
 
 class TestJobStatusEndpoint:

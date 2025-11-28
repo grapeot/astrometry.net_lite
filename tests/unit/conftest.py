@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -38,7 +38,7 @@ def sample_job_doc() -> dict[str, Any]:
         "machine_tags": [],
         "objects_in_field": [],
         "annotations": [],
-        "created_at": datetime.utcnow(),
+        "created_at": datetime.now(UTC),
         "started_at": None,
         "finished_at": None,
     }
@@ -61,8 +61,8 @@ def sample_submission_doc() -> dict[str, Any]:
         "upload_args": {},
         "status": "queued",
         "jobs": [12345],
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
+        "created_at": datetime.now(UTC),
+        "updated_at": datetime.now(UTC),
         "processing_started": None,
         "processing_finished": None,
     }
@@ -104,7 +104,7 @@ def success_job_doc(sample_job_doc: dict[str, Any]) -> dict[str, Any]:
     """A job document that has completed successfully."""
     doc = sample_job_doc.copy()
     doc["status"] = "success"
-    doc["finished_at"] = datetime.utcnow()
+    doc["finished_at"] = datetime.now(UTC)
     doc["results"]["calibration"] = {
         "ra": 180.0,
         "dec": 45.0,

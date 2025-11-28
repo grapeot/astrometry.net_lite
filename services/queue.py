@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, Optional
 
 from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
@@ -42,7 +42,7 @@ async def enqueue_job(
 
 async def lease_job(db: AsyncIOMotorDatabase) -> Optional[QueueMessage]:
     """Lease a job from the queue, ordered by priority (lower number = higher priority)."""
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     expiry = now - timedelta(seconds=settings.queue_visibility_timeout_seconds)
     doc = await _collection(db).find_one_and_update(
         {
@@ -69,11 +69,11 @@ async def lease_job(db: AsyncIOMotorDatabase) -> Optional[QueueMessage]:
 
 
 async def complete_job(db: AsyncIOMotorDatabase, queue_id) -> None:
-    await _collection(db).update_one({"_id": queue_id}, {"$set": {"completed_at": datetime.utcnow()}})
+    await _collection(db).update_one({"_id": queue_id}, {"$set": {"completed_at": datetime.now(UTC)}})
 
 
 async def fail_job(db: AsyncIOMotorDatabase, queue_id, reason: str) -> None:
     await _collection(db).update_one(
         {"_id": queue_id},
-        {"$set": {"failed_at": datetime.utcnow(), "failure_reason": reason}},
+        {"$set": {"failed_at": datetime.now(UTC), "failure_reason": reason}},
     )

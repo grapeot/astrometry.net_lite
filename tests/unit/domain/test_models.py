@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from bson import ObjectId
 
@@ -86,7 +86,7 @@ class TestSubmissionModel:
 
     def test_submission_creation_with_all_fields(self):
         """Test creating Submission with all fields."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         submission = Submission(
             api_key="test_key",
             original_filename="galaxy.jpg",
@@ -165,10 +165,10 @@ class TestQueueMessageModel:
         msg = QueueMessage(job_id=1, payload={})
         assert msg.is_locked is False
 
-        msg.locked_at = datetime.utcnow()
+        msg.locked_at = datetime.now(UTC)
         assert msg.is_locked is True
 
-        msg.completed_at = datetime.utcnow()
+        msg.completed_at = datetime.now(UTC)
         assert msg.is_locked is False
 
     def test_queue_message_with_failure(self):
@@ -178,7 +178,7 @@ class TestQueueMessageModel:
             payload={},
             attempts=3,
             failure_reason="solve timeout",
-            failed_at=datetime.utcnow(),
+            failed_at=datetime.now(UTC),
         )
 
         assert msg.attempts == 3

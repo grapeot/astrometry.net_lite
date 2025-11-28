@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Optional
 
 from bson import ObjectId
@@ -35,7 +35,7 @@ async def ensure_public_api_key(db: AsyncIOMotorDatabase) -> None:
             "apikey": PUBLIC_API_KEY,
             "priority": PUBLIC_API_KEY_PRIORITY,
             "is_system": True,
-            "created_at": datetime.utcnow(),
+            "created_at": datetime.now(UTC),
             "description": "Public API key for unauthenticated users",
             "enabled": True,
         })
@@ -100,7 +100,7 @@ async def create_submission(
 
     await db[SUBMISSIONS_COLLECTION].update_one(
         {"_id": submission_id},
-        {"$set": {"status": SubmissionStatus.queued.value, "updated_at": datetime.utcnow()}, "$push": {"jobs": job_id}},
+        {"$set": {"status": SubmissionStatus.queued.value, "updated_at": datetime.now(UTC)}, "$push": {"jobs": job_id}},
     )
 
     payload = {
@@ -124,9 +124,9 @@ async def mark_submission_started(db: AsyncIOMotorDatabase, submission_id: str) 
         {"_id": ObjectId(submission_id)},
         {
             "$set": {
-                "processing_started": datetime.utcnow(),
+                "processing_started": datetime.now(UTC),
                 "status": SubmissionStatus.processing.value,
-                "updated_at": datetime.utcnow(),
+                "updated_at": datetime.now(UTC),
             }
         },
     )
@@ -137,9 +137,9 @@ async def mark_submission_finished(db: AsyncIOMotorDatabase, submission_id: str,
         {"_id": ObjectId(submission_id)},
         {
             "$set": {
-                "processing_finished": datetime.utcnow(),
+                "processing_finished": datetime.now(UTC),
                 "status": status.value,
-                "updated_at": datetime.utcnow(),
+                "updated_at": datetime.now(UTC),
             }
         },
     )

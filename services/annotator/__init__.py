@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from astropy.io import fits
@@ -210,7 +210,7 @@ def generate_placeholder_annotation(job_id: int, source_path: Path) -> Path:
     text = [
         f"Job #{job_id}",
         f"Source: {source_path.name}",
-        f"Generated: {datetime.utcnow().isoformat()}Z",
+        f"Generated: {datetime.now(UTC).isoformat()}Z",
         "(Placeholder annotation)",
     ]
     font = ImageFont.load_default()
