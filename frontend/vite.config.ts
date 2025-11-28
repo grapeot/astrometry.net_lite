@@ -4,13 +4,16 @@ import react from '@vitejs/plugin-react'
 // Detect if running in Docker environment
 const isDocker = process.env.DOCKER_ENV === 'true'
 
+// Get port from environment variable, default to 5173
+const frontendPort = parseInt(process.env.VITE_FRONTEND_PORT || process.env.FRONTEND_PORT || '5173', 10)
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   server: {
     // Docker environment needs to listen on 0.0.0.0, local development uses localhost
     host: isDocker ? '0.0.0.0' : 'localhost',
-    port: 5173,
+    port: frontendPort,
     strictPort: true,
     // Use polling only in Docker environment
     watch: isDocker ? {
@@ -20,7 +23,7 @@ export default defineConfig({
     // HMR config: Docker environment needs to specify clientPort, local uses default config (not set)
     ...(isDocker ? {
       hmr: {
-        clientPort: 5173,
+        clientPort: frontendPort,
       },
     } : {}),
     fs: {

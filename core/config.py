@@ -2,6 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,6 +13,7 @@ class AppSettings(BaseSettings):
 
     mongodb_uri: str = "mongodb://localhost:27017"
     mongodb_dbname: str = "astrometry_dev"
+    mongodb_port: int = 27017
 
     data_root: Path = Path("./data")
     astrometry_index_dir: Path = Path("./astrometry_indexes")
@@ -37,6 +39,18 @@ class AppSettings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+    
+    def model_post_init(self, __context) -> None:
+        """Update mongodb_uri with mongodb_port if port differs from URI."""
+        import re
+        # Only update if URI matches default pattern and port differs
+        match = re.match(r"mongodb://([^:]+):(\d+)", self.mongodb_uri)
+        if match:
+            host = match.group(1)
+            current_port = int(match.group(2))
+            # Update if port was explicitly set via environment variable and differs
+            if current_port != self.mongodb_port:
+                self.mongodb_uri = f"mongodb://{host}:{self.mongodb_port}"
 
 
 @lru_cache

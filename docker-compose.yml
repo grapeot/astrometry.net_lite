@@ -9,7 +9,7 @@ services:
     image: mongo:8
     container_name: astrometry-mongodb
     ports:
-      - "27017:27017"
+      - "${MONGODB_PORT:-27017}:27017"
     volumes:
       - ./data/mongodb:/data/db
     environment:
@@ -25,7 +25,7 @@ services:
       dockerfile: Dockerfile
     container_name: astrometry-backend
     ports:
-      - "8002:8002"
+      - "${API_PORT:-8002}:8002"
     volumes:
       - ./data:/app/data
       - ./astrometry_indexes:/app/astrometry_indexes
@@ -39,15 +39,16 @@ services:
     environment:
       - MONGODB_URI=mongodb://mongodb:27017
       - MONGODB_DBNAME=astrometry_dev
+      - MONGODB_PORT=${MONGODB_PORT:-27017}
       - API_HOST=0.0.0.0
-      - API_PORT=8002
+      - API_PORT=${API_PORT:-8002}
     depends_on:
       - mongodb
     networks:
       - astrometry-network
     restart: unless-stopped
     # 使用 --reload 启用自动重载
-    command: uvicorn api.main:app --host 0.0.0.0 --port 8002 --reload
+    command: sh -c "uvicorn api.main:app --host 0.0.0.0 --port $${API_PORT:-8002} --reload"
 
   frontend:
     image: astrometry-frontend:latest
@@ -56,12 +57,13 @@ services:
       dockerfile: Dockerfile
     container_name: astrometry-frontend
     ports:
-      - "5173:5173"
+      - "${FRONTEND_PORT:-5173}:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - VITE_API_BASE=http://localhost:8002/api
+      - VITE_API_BASE=http://localhost:${API_PORT:-8002}/api
+      - VITE_FRONTEND_PORT=${FRONTEND_PORT:-5173}
       - DOCKER_ENV=true
     depends_on:
       - backend
