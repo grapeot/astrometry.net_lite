@@ -105,7 +105,7 @@ def test_upload(client: Client, image_path: Path) -> dict:
 def test_url_upload(client: Client, image_url: str) -> dict:
     """Test uploading an image from URL."""
     print("\n" + "=" * 60)
-    print(f"Test 2: Upload image from URL")
+    print("Test 2: Upload image from URL")
     print("=" * 60)
     print(f"URL: {image_url}")
     print("=" * 60)

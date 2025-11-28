@@ -479,7 +479,7 @@ class DocumentDetail(TextArea):
                         preview_lines.append("")
                 
                 return "\n".join(preview_lines)
-        except Exception as e:
+        except Exception:
             return None
 
 
@@ -1047,7 +1047,6 @@ class MongoDBAdminApp(App):
 
     def update_status(self, message: str) -> None:
         """更新状态栏"""
-        footer = self.query_one(Footer)
         # Footer 不直接支持设置文本，我们使用 title 属性或者通过其他方式
         # 简化处理：使用 notify 显示消息
         self.notify(message, timeout=3)
