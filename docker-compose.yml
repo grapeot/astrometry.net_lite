@@ -62,6 +62,7 @@ services:
       - /app/node_modules
     environment:
       - VITE_API_BASE=http://localhost:8002
+      - DOCKER_ENV=true
     depends_on:
       - backend
     networks:

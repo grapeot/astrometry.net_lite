@@ -21,6 +21,41 @@ if ! command -v npm >/dev/null 2>&1; then
     exit 1
 fi
 
+# Check for MongoDB
+echo "📦 Checking MongoDB installation..."
+if ! command -v mongod >/dev/null 2>&1; then
+    echo "   MongoDB not found. Attempting to install..."
+    
+    # Detect OS
+    OS="$(uname -s)"
+    case "$OS" in
+        Darwin)
+            # macOS
+            if ! command -v brew >/dev/null 2>&1; then
+                echo "❌ Error: Homebrew is required to install MongoDB on macOS."
+                echo "   Please install Homebrew first: https://brew.sh"
+                exit 1
+            fi
+            echo "   Installing MongoDB via Homebrew..."
+            brew tap mongodb/brew
+            brew install mongodb-community
+            echo "   ✓ MongoDB installed"
+            ;;
+        Linux)
+            echo "⚠️  MongoDB not found on Linux. Please install MongoDB manually:"
+            echo "   https://www.mongodb.com/docs/manual/installation/"
+            echo ""
+            echo "   Or use Docker Compose instead: docker-compose up"
+            ;;
+        *)
+            echo "⚠️  MongoDB not found. Please install MongoDB manually:"
+            echo "   https://www.mongodb.com/docs/manual/installation/"
+            ;;
+    esac
+else
+    echo "   ✓ MongoDB already installed"
+fi
+
 # Setup Python virtual environment
 echo "📦 Setting up Python virtual environment..."
 VENV_DIR="$PROJECT_ROOT/venv"

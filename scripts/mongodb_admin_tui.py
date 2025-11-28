@@ -577,8 +577,12 @@ class ErrorDialog(ModalScreen[None]):
     
     .error-dialog-message {
         width: 100%;
+        height: auto;
+        min-height: 10;
         margin-bottom: 1;
         padding: 1;
+        border: none;
+        background: $surface;
     }
     
     .error-dialog-buttons {
@@ -597,7 +601,14 @@ class ErrorDialog(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         with Container(classes="error-dialog-container"):
             yield Label(self.dialog_title, classes="error-dialog-title")
-            yield Label(self.message, classes="error-dialog-message")
+            # 使用 TextArea 显示错误消息，避免 markup 解析问题
+            message_widget = TextArea(
+                self.message,
+                classes="error-dialog-message",
+                read_only=True,
+                show_line_numbers=False,
+            )
+            yield message_widget
             with Horizontal(classes="error-dialog-buttons"):
                 yield Button("退出 (q)", variant="error", id="exit")
 
@@ -794,14 +805,46 @@ class MongoDBAdminApp(App):
             await self.client.admin.command('ping')
         except Exception as e:
             error_title = "❌ 无法连接到 MongoDB"
-            error_msg = (
-                f"错误信息: {str(e)}\n\n"
-                f"请检查:\n"
-                f"  1. MongoDB 是否正在运行\n"
-                f"  2. 连接字符串是否正确 (当前: {settings.mongodb_uri})\n"
-                f"  3. 如果使用 Docker，请运行: docker-compose up -d mongodb\n"
-                f"  4. 如果使用本地 MongoDB，请运行: ./scripts/start_mongodb.sh"
+            
+            # 检查错误类型，提供更友好的提示
+            error_str = str(e).lower()
+            error_type = type(e).__name__
+            
+            # 判断是否是 MongoDB 未运行的情况
+            is_mongodb_not_running = (
+                "connection refused" in error_str or
+                "cannot connect" in error_str or
+                "server selection timeout" in error_str or
+                "name or service not known" in error_str or
+                error_type in ["ServerSelectionTimeoutError", "ConnectionFailure", "ConnectionRefusedError"] or
+                "errno 61" in error_str or  # Connection refused on macOS
+                "errno 111" in error_str    # Connection refused on Linux
             )
+            
+            if is_mongodb_not_running:
+                error_msg = (
+                    "MongoDB 服务未运行或无法连接。\n\n"
+                    "请先启动 MongoDB:\n\n"
+                    "• 如果使用 Docker:\n"
+                    "  docker-compose up -d mongodb\n\n"
+                    "• 如果使用本地 MongoDB:\n"
+                    "  ./scripts/start_mongodb.sh\n\n"
+                    "• 如果使用 Homebrew 安装的 MongoDB:\n"
+                    "  brew services start mongodb-community\n\n"
+                    f"当前连接字符串: {settings.mongodb_uri}"
+                )
+            else:
+                error_msg = (
+                    f"连接 MongoDB 时出错。\n\n"
+                    f"错误信息: {str(e)}\n\n"
+                    f"请检查:\n"
+                    f"  1. MongoDB 是否正在运行\n"
+                    f"  2. 连接字符串是否正确\n"
+                    f"  3. 网络连接是否正常\n"
+                    f"  4. MongoDB 服务是否可访问\n\n"
+                    f"当前连接字符串: {settings.mongodb_uri}"
+                )
+            
             # 显示错误对话框
             await self.push_screen(ErrorDialog(error_title, error_msg))
             return
