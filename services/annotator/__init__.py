@@ -142,14 +142,23 @@ def _generate_annotation_python(job_id: int, source_path: Path, wcs_path: Path, 
         adjusted_labels.append((obj, x, y, adjusted_x, adjusted_y))
     
     # Third pass: draw objects with adjusted label positions
+    # Sort by priority (reverse order: highest priority last, so it renders on top)
+    adjusted_labels_sorted = sorted(
+        adjusted_labels,
+        key=lambda item: catalog.get_catalog_priority(item[0].name),
+        reverse=False  # Lower priority number = higher priority, so we want lowest numbers last
+    )
+    # Reverse to draw highest priority last (on top)
+    adjusted_labels_sorted.reverse()
+    
     objects_drawn = 0
-    for obj, x, y, label_x, label_y in adjusted_labels:
+    for obj, x, y, label_x, label_y in adjusted_labels_sorted:
         try:
             obj_type = catalog.get_object_type(obj.name)
             renderer.draw_object(draw, x, y, obj, obj_type, width, height, wcs, font, label_x, label_y)
             objects_drawn += 1
-            logger.debug("Drew object: %s at (%.1f, %.1f) with label at (%.1f, %.1f)", 
-                        obj.name, x, y, label_x, label_y)
+            logger.debug("Drew object: %s (priority %d) at (%.1f, %.1f) with label at (%.1f, %.1f)", 
+                        obj.name, catalog.get_catalog_priority(obj.name), x, y, label_x, label_y)
         except Exception as e:  # noqa: BLE001
             logger.debug("Error drawing object %s: %s", obj.name, e)
             continue
