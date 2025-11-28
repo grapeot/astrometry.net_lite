@@ -42,6 +42,22 @@ COPY workers ./workers
 COPY docs ./docs
 COPY scripts ./scripts
 
+# Build frontend (multi-stage build)
+FROM node:20-slim AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci
+COPY frontend/ .
+# Build with relative API path for backend serving
+ARG VITE_API_BASE=/api
+ENV VITE_API_BASE=${VITE_API_BASE:-/api}
+RUN npm run build
+
+# Final stage: combine backend and frontend
+FROM base
+# Copy frontend build to backend
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+
 # Set default astrometry.net binary paths (can be overridden via environment variables)
 # These binaries are installed via apt-get in /usr/bin/
 ENV SOLVE_FIELD_BIN=/usr/bin/solve-field \

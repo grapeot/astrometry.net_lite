@@ -54,7 +54,7 @@ export function useJobList(initialLimit: number = 20) {
         })
       ).then((updatedJobs) => {
         setJobs(current => {
-          const updatedMap = new Map(updatedJobs.filter(Boolean).map(job => [job.job_id, job]));
+          const updatedMap = new Map(updatedJobs.filter((job): job is NonNullable<typeof job> => job !== null).map(job => [job.job_id, job]));
           return current.map(job => {
             const updated = updatedMap.get(job.job_id);
             if (updated) {
