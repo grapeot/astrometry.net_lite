@@ -61,7 +61,7 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - VITE_API_BASE=http://localhost:8002
+      - VITE_API_BASE=http://localhost:8002/api
       - DOCKER_ENV=true
     depends_on:
       - backend
@@ -69,6 +69,30 @@ services:
       - astrometry-network
     restart: unless-stopped
     command: npm run dev -- --host 0.0.0.0
+
+  worker:
+    image: astrometry-backend:latest
+    container_name: astrometry-worker
+    volumes:
+      - ./data:/app/data
+      - ./astrometry_indexes:/app/astrometry_indexes
+      - ./catalogs:/app/catalogs
+      # 挂载代码目录以实现热重载（开发模式）
+      - ./api:/app/api
+      - ./core:/app/core
+      - ./domain:/app/domain
+      - ./services:/app/services
+      - ./workers:/app/workers
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DBNAME=astrometry_dev
+    depends_on:
+      - mongodb
+      - backend
+    networks:
+      - astrometry-network
+    restart: unless-stopped
+    command: python -m workers.run_worker
 
 networks:
   astrometry-network:
