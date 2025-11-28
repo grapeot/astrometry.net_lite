@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import shutil
 from pathlib import Path
-from urllib.parse import urlparse, unquote
+from urllib.parse import unquote
 
 from core.config import settings
 

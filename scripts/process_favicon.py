@@ -63,7 +63,7 @@ def process_favicon():
     print(f"Saved ICO favicon: {FAVICON_ICO}")
     
     # Print file sizes
-    print(f"\nFile sizes:")
+    print("\nFile sizes:")
     print(f"  PNG: {FAVICON_OUTPUT.stat().st_size / 1024:.1f} KB")
     print(f"  ICO: {FAVICON_ICO.stat().st_size / 1024:.1f} KB")
 
