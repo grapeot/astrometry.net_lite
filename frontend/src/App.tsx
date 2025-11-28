@@ -85,12 +85,12 @@ function App() {
     }
   }
 
-  const handleLogout = () => {
+  const handleChangeApiKey = () => {
     setSession(null)
-    setApiKey('')
+    setApiKey(PUBLIC_API_KEY) // Reset to default public key
     setJobs([])
     setJobDetails({})
-    setHasLoggedOut(true) // Mark that user explicitly logged out
+    setHasLoggedOut(true) // Mark that user explicitly changed API key
     // Clear localStorage
     localStorage.removeItem(SESSION_STORAGE_KEY)
   }
@@ -209,8 +209,8 @@ function App() {
           <section className="panel">
             <div className="panel-header">
               <h2>Logged In</h2>
-              <button onClick={handleLogout} style={{ background: 'rgba(248, 113, 113, 0.2)', color: '#f87171' }}>
-                Logout
+              <button onClick={handleChangeApiKey} style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#3b82f6' }}>
+                Change API Key
               </button>
             </div>
             <p style={{ fontSize: '0.9rem', color: '#999', marginTop: '0.5rem' }}>

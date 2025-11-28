@@ -142,18 +142,18 @@ export function NewJob() {
             <button
               onClick={() => {
                 setSession(null);
-                setApiKey('');
+                setApiKey(PUBLIC_API_KEY);
                 setHasLoggedOut(true);
                 localStorage.removeItem(SESSION_STORAGE_KEY);
               }}
               style={{
-                background: 'rgba(248, 113, 113, 0.2)',
-                color: '#f87171',
+                background: 'rgba(59, 130, 246, 0.2)',
+                color: '#3b82f6',
                 padding: '0.5rem 1rem',
                 fontSize: '0.9rem',
               }}
             >
-              Logout
+              Change API Key
             </button>
           </div>
           <p style={{ color: '#9ca3af', marginBottom: '1rem' }}>
