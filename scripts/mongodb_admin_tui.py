@@ -209,7 +209,26 @@ class DocumentDetail(TextArea):
         # 如果是 artifacts 集合，尝试解析文件信息
         if self.current_collection == "artifacts":
             doc_with_file_info = self._enrich_artifact_doc(doc)
+            
+            # 提取预览信息（如果存在）
+            ascii_preview = None
+            wcs_preview = None
+            file_info = doc_with_file_info.get("_file_info", {})
+            if isinstance(file_info, dict):
+                ascii_preview = file_info.pop("ascii_preview", None)
+                wcs_preview = file_info.pop("wcs_preview", None)
+            
             json_str = dumps(doc_with_file_info, indent=2, ensure_ascii=False, default=default)
+            
+            # 添加预览信息
+            preview_parts = []
+            if wcs_preview:
+                preview_parts.append(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nWCS 预览:\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n{wcs_preview}")
+            if ascii_preview:
+                preview_parts.append(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n图片预览 (ASCII):\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n{ascii_preview}")
+            
+            if preview_parts:
+                json_str = f"{json_str}\n\n" + "\n\n".join(preview_parts)
         else:
             # 格式化 JSON
             json_str = dumps(doc, indent=2, ensure_ascii=False, default=default)
@@ -259,6 +278,12 @@ class DocumentDetail(TextArea):
                 fits_info = self._parse_fits_file(file_path)
                 if fits_info:
                     file_info["fits_info"] = fits_info
+                
+                # 如果是 WCS 文件，尝试生成可视化预览
+                if artifact_type_str == "wcs":
+                    wcs_preview = self._generate_wcs_preview(file_path)
+                    if wcs_preview:
+                        file_info["wcs_preview"] = wcs_preview
             elif artifact_type_str == "annotated":
                 # 解析图像文件
                 from PIL import Image
@@ -271,6 +296,10 @@ class DocumentDetail(TextArea):
                         "width": img.width,
                         "height": img.height,
                     }
+                    # 生成 ASCII 预览
+                    ascii_preview = self._image_to_ascii(file_path)
+                    if ascii_preview:
+                        file_info["ascii_preview"] = ascii_preview
                 except Exception as e:
                     file_info["image_info"] = {"error": str(e)}
         except Exception as e:
@@ -338,6 +367,118 @@ class DocumentDetail(TextArea):
                 return f"{size_bytes:.1f} {unit}"
             size_bytes /= 1024.0
         return f"{size_bytes:.1f} TB"
+
+    def _image_to_ascii(self, image_path: Path, width: int = 60, height: int = 20) -> Optional[str]:
+        """将图片转换为 ASCII 艺术预览"""
+        try:
+            from PIL import Image
+            
+            # 打开并调整图片大小
+            img = Image.open(image_path)
+            
+            # 转换为 RGB（如果是 RGBA 或其他格式）
+            if img.mode != "RGB":
+                img = img.convert("RGB")
+            
+            # 保持宽高比缩放
+            img_width, img_height = img.size
+            aspect_ratio = img_width / img_height
+            if aspect_ratio > width / height:
+                new_width = width
+                new_height = int(width / aspect_ratio)
+            else:
+                new_height = height
+                new_width = int(height * aspect_ratio)
+            
+            img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            
+            # 转换为灰度
+            img_gray = img.convert("L")
+            
+            # ASCII 字符集（从暗到亮）
+            # 使用 Unicode 块字符获得更好的效果
+            ascii_chars = " ░▒▓█"
+            # 或者使用更简单的字符集：ascii_chars = " .:-=+*#%@"
+            
+            # 转换为 ASCII
+            ascii_lines = []
+            pixels = img_gray.load()
+            
+            for y in range(new_height):
+                line = ""
+                for x in range(new_width):
+                    brightness = pixels[x, y]
+                    # 将亮度值 (0-255) 映射到字符索引 (0-4)
+                    char_index = int(brightness / 255 * (len(ascii_chars) - 1))
+                    line += ascii_chars[char_index] * 2  # 每个字符显示两次，因为终端字符通常比较窄
+                ascii_lines.append(line)
+            
+            return "\n".join(ascii_lines)
+        except Exception as e:
+            return None
+
+    def _generate_wcs_preview(self, wcs_path: Path) -> Optional[str]:
+        """生成 WCS 文件的可视化预览"""
+        try:
+            with fits.open(wcs_path) as hdul:
+                header = hdul[0].header
+                wcs = WCS(header)
+                
+                if not wcs.is_celestial:
+                    return None
+                
+                naxis1 = header.get("NAXIS1", 0)
+                naxis2 = header.get("NAXIS2", 0)
+                if not naxis1 or not naxis2:
+                    return None
+                
+                # 计算四个角的坐标
+                corners = [
+                    (0, 0),           # 左下
+                    (naxis1, 0),      # 右下
+                    (naxis1, naxis2), # 右上
+                    (0, naxis2),      # 左上
+                ]
+                
+                corner_coords = []
+                for x, y in corners:
+                    coord = wcs.pixel_to_world(x, y)
+                    corner_coords.append({
+                        "pixel": f"({x}, {y})",
+                        "ra_deg": round(float(coord.ra.deg), 6),
+                        "dec_deg": round(float(coord.dec.deg), 6),
+                        "ra_hms": str(coord.ra.to_string(unit="hour", precision=1)),
+                        "dec_dms": str(coord.dec.to_string(unit="deg", precision=1)),
+                    })
+                
+                # 计算中心坐标
+                center = wcs.pixel_to_world(naxis1 / 2, naxis2 / 2)
+                scales = proj_plane_pixel_scales(wcs)
+                pixscale_arcsec = float(scales.mean() * 3600)
+                
+                # 生成预览文本
+                preview_lines = [
+                    f"图像尺寸: {naxis1} x {naxis2} 像素",
+                    f"像素比例: {pixscale_arcsec:.3f} arcsec/pixel",
+                    "",
+                    f"中心坐标:",
+                    f"  RA:  {center.ra.to_string(unit='hour', precision=2)}  ({center.ra.deg:.6f}°)",
+                    f"  Dec: {center.dec.to_string(unit='deg', precision=2)}  ({center.dec.deg:.6f}°)",
+                    "",
+                    "四个角坐标:",
+                ]
+                
+                corner_labels = ["左下", "右下", "右上", "左上"]
+                for i, (label, corner) in enumerate(zip(corner_labels, corner_coords)):
+                    preview_lines.append(f"  {label}: {corner['pixel']}")
+                    preview_lines.append(f"    RA:  {corner['ra_hms']}  ({corner['ra_deg']:.6f}°)")
+                    preview_lines.append(f"    Dec: {corner['dec_dms']}  ({corner['dec_deg']:.6f}°)")
+                    if i < len(corner_coords) - 1:
+                        preview_lines.append("")
+                
+                return "\n".join(preview_lines)
+        except Exception as e:
+            return None
 
 
 class ConfirmDialog(ModalScreen[bool]):
@@ -537,12 +678,23 @@ class MongoDBAdminApp(App):
     
     DocumentTable {
         border: solid $primary;
+        height: 1fr;  /* 使用 flex 布局，占据剩余空间 */
     }
     
     DocumentDetail {
         height: 15;
+        min-height: 10;  /* 最小高度，确保可见 */
+        max-height: 20;  /* 最大高度，防止占用太多空间 */
         border: solid $primary;
         background: $panel;
+    }
+    
+    Vertical {
+        height: 100%;
+    }
+    
+    Vertical {
+        height: 100%;
     }
     
     .status-bar {
