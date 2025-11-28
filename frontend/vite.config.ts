@@ -1,23 +1,23 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// 检测是否在 Docker 环境中运行
+// Detect if running in Docker environment
 const isDocker = process.env.DOCKER_ENV === 'true'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   server: {
-    // Docker 环境需要监听 0.0.0.0，本地开发使用 localhost
+    // Docker environment needs to listen on 0.0.0.0, local development uses localhost
     host: isDocker ? '0.0.0.0' : 'localhost',
     port: 5173,
     strictPort: true,
-    // 只在 Docker 环境中使用 polling
+    // Use polling only in Docker environment
     watch: isDocker ? {
       usePolling: true,
       interval: 2000,
     } : undefined,
-    // HMR 配置：Docker 环境需要指定 clientPort，本地使用默认配置（不设置）
+    // HMR config: Docker environment needs to specify clientPort, local uses default config (not set)
     ...(isDocker ? {
       hmr: {
         clientPort: 5173,
@@ -28,7 +28,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    // 预构建依赖，避免运行时卡顿
+    // Pre-build dependencies to avoid runtime lag
     include: ['react', 'react-dom', 'react-router-dom'],
   },
 })

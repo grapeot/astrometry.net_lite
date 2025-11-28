@@ -1,4 +1,4 @@
-# 生产环境 Dockerfile - 构建静态文件并用 nginx 服务
+# Production Dockerfile - build static files and serve with nginx
 FROM node:20-slim AS builder
 
 WORKDIR /app
