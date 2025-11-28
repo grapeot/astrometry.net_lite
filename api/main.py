@@ -40,6 +40,21 @@ if frontend_dist_path.exists():
     # Mount static assets (JS, CSS, images, etc.)
     app.mount("/assets", StaticFiles(directory=frontend_dist_path / "assets"), name="assets")
     
+    # Serve favicon files
+    @app.get("/favicon.png")
+    async def serve_favicon_png():
+        favicon_path = frontend_dist_path / "favicon.png"
+        if favicon_path.exists():
+            return FileResponse(favicon_path, media_type="image/png")
+        return {"detail": "Not Found"}
+    
+    @app.get("/favicon.ico")
+    async def serve_favicon_ico():
+        favicon_path = frontend_dist_path / "favicon.ico"
+        if favicon_path.exists():
+            return FileResponse(favicon_path, media_type="image/x-icon")
+        return {"detail": "Not Found"}
+    
     # Serve root-level static files (like vite.svg)
     @app.get("/vite.svg")
     async def serve_vite_svg():
@@ -64,7 +79,7 @@ if frontend_dist_path.exists():
         if full_path.startswith("api/") or full_path.startswith("annotated_display/") or \
            full_path.startswith("wcs_file/") or full_path.startswith("new_fits_file/") or \
            full_path.startswith("corr_file/") or full_path.startswith("kml_file/") or \
-           full_path.startswith("assets/"):
+           full_path.startswith("assets/") or full_path in ["favicon.png", "favicon.ico", "vite.svg"]:
             from fastapi import HTTPException
             raise HTTPException(status_code=404, detail="Not Found")
         
